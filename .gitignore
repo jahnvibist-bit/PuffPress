@@ -1,0 +1,14 @@
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+storage/
+chunks/
+dist/
+data.txt
