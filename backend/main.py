@@ -1734,6 +1734,7 @@ allowed_origins = [
     "http://10.241.119.38:5173",
     "http://192.168.0.108:5173",
     "http://10.93.125.38:5173",
+    "https://puffpress-frontend.vercel.app",
 ]
 
 if frontend_origin:
