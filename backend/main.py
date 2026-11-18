@@ -2033,13 +2033,19 @@ def get_pairing_frontend_origin(request: Request):
 
 
 def make_pairing_qr_png(pairing_id: str, frontend_origin: str):
-    pairing_url = f"{frontend_origin}/pair.html?pairing_id={pairing_id}"
+    from urllib.parse import quote
+
+    pairing_url = (
+        "https://puffpress-frontend.vercel.app/pair.html"
+        f"?pairing_id={quote(pairing_id, safe='')}"
+    )
+
+    print("QR destination:", pairing_url.split("?")[0])
+
     qr = qrcode.make(pairing_url)
     buffer = io.BytesIO()
     qr.save(buffer, format="PNG")
     return buffer.getvalue()
-
-
 
 @app.post("/pairing/create", dependencies=[Depends(require_supabase_user)])
 def create_pairing(
