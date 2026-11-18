@@ -306,9 +306,11 @@
       location.protocol === "http:" &&
         (location.port === "5173" || location.port === "5174");
 
-      const wsHost = isLocalDev
-      ? `${location.hostname}:8000`
-      : location.host;
+      
+    const wsHost = isLocalDev
+    ? `${location.hostname}:8000`
+    : "puffpress.onrender.com";
+
 
       const wsUrl =
       `${protocol}//${wsHost}/ws/device/` +
