@@ -823,28 +823,35 @@ if (!authenticated) {
                 </p>
 
                 
+
 {pairing?.pairing_id && (
   <div style={{ textAlign: "center", margin: "16px auto" }}>
-    <img
-      key={pairing.pairing_id}
-      src={pairing.qr_image || `${API_BASE}/pairing/qr/${encodeURIComponent(pairing.pairing_id)}`}
-      alt="Device pairing QR"
-      onLoad={() => setQrFailed(false)}
-      onError={() => setQrFailed(true)}
-      style={{
-        width: 210,
-        height: 210,
-        display: qrFailed ? "none" : "block",
-        margin: "0 auto",
-        background: "white",
-        padding: 10,
-        borderRadius: 14,
-      }}
-    />
+    {pairing.qr_image ? (
+      <img
+        key={pairing.pairing_id}
+        src={pairing.qr_image}
+        alt="Device pairing QR"
+        onLoad={() => setQrFailed(false)}
+        onError={() => setQrFailed(true)}
+        style={{
+          width: 210,
+          height: 210,
+          display: "block",
+          margin: "0 auto",
+          background: "white",
+          padding: 10,
+          borderRadius: 14,
+        }}
+      />
+    ) : (
+      <p role="alert" style={{ color: "#b84c58" }}>
+        QR image missing from backend response.
+      </p>
+    )}
+
     {qrFailed && (
       <p role="alert" style={{ color: "#b84c58" }}>
-        QR image could not load. Please generate a new code after
-        confirming the latest backend deployment is live.
+        QR image failed to load.
       </p>
     )}
   </div>
