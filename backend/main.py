@@ -2394,15 +2394,23 @@ def send_chunks(node, chunk_id, chunk_data):
     return response.json()
 
 
-async def send_chunk_to_node(
-    node, chunk_id, chunk_data
-):
+
+async def send_chunk_to_node(node, chunk_id, chunk_data):
     if node["url"].startswith("browser://"):
-        return await store_browser_chunk(
-            node["id"],
-            chunk_id,
-            chunk_data,
-        )
+        for attempt in range(2):
+            try:
+                return await store_browser_chunk(
+                    node["id"],
+                    chunk_id,
+                    chunk_data,
+                )
+
+            except (ConnectionError, asyncio.TimeoutError):
+                if attempt == 1:
+                    raise
+
+                # Give the phone time to reconnect.
+                await asyncio.sleep(3)
 
     return await asyncio.to_thread(
         send_chunks,
@@ -2410,7 +2418,6 @@ async def send_chunk_to_node(
         chunk_id,
         chunk_data,
     )
-
 
 async def retrieve_chunk_from_node(
     device_id, node_url, chunk_id
@@ -2589,6 +2596,13 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
                 ))
 
     except Exception as error:
+        print(
+            "UPLOAD FAILED:",
+            type(error).__name__,
+            str(error),
+            flush=True,
+        )
+
         cleanup_failed = []
 
         for device_id, node_url, chunk_id in reversed(
