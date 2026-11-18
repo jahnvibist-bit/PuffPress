@@ -822,8 +822,6 @@ if (!authenticated) {
                   second device.
                 </p>
 
-                
-
 {pairing?.pairing_id && (
   <div style={{ textAlign: "center", margin: "16px auto" }}>
     {pairing.qr_image ? (
@@ -854,8 +852,24 @@ if (!authenticated) {
         QR image failed to load.
       </p>
     )}
+
+    <a
+      href={`https://puffpress-frontend.vercel.app/pair.html?pairing_id=${encodeURIComponent(pairing.pairing_id)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "block",
+        marginTop: 16,
+        color: "#6366f1",
+        textDecoration: "underline",
+        fontWeight: 600,
+      }}
+    >
+      Open Pairing Page
+    </a>
   </div>
 )}
+
 
 
                 <p>Your pairing code:</p>
