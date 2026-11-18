@@ -16,7 +16,7 @@ import {
 import { signUpUser, signOutUser, supabase } from "./supabase.js";
 import "./App.css";
 
-const API_BASE = "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 function formatStorage(gb) {
   const value = Number(gb) || 0;
 
@@ -45,6 +45,7 @@ function App() {
   const [pairing, setPairing] = useState(null);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [pairingError, setPairingError] = useState("");
+  const [qrFailed, setQrFailed] = useState(false);
 
   const [user, setUser] = useState(
     () => localStorage.getItem("puffpress_name") || ""
@@ -242,12 +243,13 @@ function App() {
   async function handleCreatePairing() {
     setPairingLoading(true);
     setPairingError("");
+    setQrFailed(false);
 
     try {
       const data = await createPairing();
 
-      if (!data?.pairing_id || !data?.qr_image) {
-        throw new Error("Backend did not return a QR image. Check that the updated backend is deployed.");
+      if (!data?.pairing_id) {
+        throw new Error("Backend did not return a pairing ID.");
       }
       setPairing(data);
       setActiveModal("pair");
@@ -821,21 +823,31 @@ if (!authenticated) {
                 </p>
 
                 
-{pairing?.qr_image && (
-  <img
-    src={pairing.qr_image}
-    alt="Device pairing QR"
-    style={{
-      width: 210,
-      height: 210,
-      maxWidth: "100%",
-      margin: "20px auto",
-      display: "block",
-      background: "white",
-      padding: 10,
-      borderRadius: 14,
-    }}
-  />
+{pairing?.pairing_id && (
+  <div style={{ textAlign: "center", margin: "16px auto" }}>
+    <img
+      key={pairing.pairing_id}
+      src={pairing.qr_image || `${API_BASE}/pairing/qr/${encodeURIComponent(pairing.pairing_id)}`}
+      alt="Device pairing QR"
+      onLoad={() => setQrFailed(false)}
+      onError={() => setQrFailed(true)}
+      style={{
+        width: 210,
+        height: 210,
+        display: qrFailed ? "none" : "block",
+        margin: "0 auto",
+        background: "white",
+        padding: 10,
+        borderRadius: 14,
+      }}
+    />
+    {qrFailed && (
+      <p role="alert" style={{ color: "#b84c58" }}>
+        QR image could not load. Please generate a new code after
+        confirming the latest backend deployment is live.
+      </p>
+    )}
+  </div>
 )}
 
 
