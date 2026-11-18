@@ -1722,17 +1722,27 @@ app = FastAPI(title="PuffPress API")
 
 app.include_router(device_router)
 
+frontend_origin = os.environ.get(
+    "PUFFPRESS_FRONTEND_ORIGIN", ""
+).rstrip("/")
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://10.241.119.38:5173",
+    "http://192.168.0.108:5173",
+    "http://10.93.125.38:5173",
+]
+
+if frontend_origin:
+    allowed_origins.append(frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://10.241.119.38:5173",
-        "http://192.168.0.108:5173",
-        "http://10.93.125.38:5173"
-    ],
+    allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "PATCH"],
     allow_headers=["*"],
 )
@@ -1813,7 +1823,8 @@ def require_owner_session(request: Request):
 
         if public_origin:
             allowed_origins.add(public_origin)
-
+        if frontend_origin:
+            allowed_origins.add(frontend_origin)
         if origin not in allowed_origins:
             raise HTTPException(
                 status_code=403,
@@ -1938,8 +1949,8 @@ def owner_login(
         key="puffpress_session",
         value=token,
         httponly=True,
-        secure=public_origin.startswith("https://"),
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=86400,
         path="/"
     )
