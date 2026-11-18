@@ -2047,11 +2047,13 @@ def pairing_qr(pairing_id: str, request: Request):
             detail="Pairing session expired or used",
         )
 
-    host = request.url.hostname
-    public_origin = os.environ.get("PUFFPRESS_PUBLIC_ORIGIN")
+    frontend_origin = os.environ.get(
+        "PUFFPRESS_FRONTEND_ORIGIN",
+        ""
+    ).rstrip("/")
 
-    if public_origin:
-        base_url = public_origin.rstrip("/")
+    if frontend_origin:
+        base_url = frontend_origin
     else:
         host = request.url.hostname
 
@@ -2061,11 +2063,9 @@ def pairing_qr(pairing_id: str, request: Request):
                 detail="Open this endpoint using your laptop's LAN IP",
             )
 
-        base_url = f"http://{host}:8000"
+        base_url = f"http://{host}:5173"
 
-    pairing_url = (
-        f"{base_url}/pair.html?pairing_id={pairing_id}"
-    )
+    pairing_url = f"{base_url}/pair.html?pairing_id={pairing_id}"
 
     qr = qrcode.make(pairing_url)
     buffer = io.BytesIO()
@@ -2074,10 +2074,8 @@ def pairing_qr(pairing_id: str, request: Request):
     return Response(
         content=buffer.getvalue(),
         media_type="image/png",
+        headers={"Cache-Control": "no-store"},
     )
-
-
-
 @app.post("/pairing/verify")
 def verify_pairing(data: PairingVerifyRequest):
     with pairing_attempts_lock:
