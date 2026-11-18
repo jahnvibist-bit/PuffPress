@@ -2032,17 +2032,8 @@ def get_pairing_frontend_origin(request: Request):
     )
 
 
-
 def make_pairing_qr_png(pairing_id: str, frontend_origin: str):
-    # Always direct the phone to the pairing page.
-    frontend_origin = frontend_origin.rstrip("/")
-    pairing_url = (
-        f"{frontend_origin}/pair.html"
-        f"?pairing_id={pairing_id}"
-    )
-
-    print("QR destination:", pairing_url)
-
+    pairing_url = f"{frontend_origin}/pair.html?pairing_id={pairing_id}"
     qr = qrcode.make(pairing_url)
     buffer = io.BytesIO()
     qr.save(buffer, format="PNG")

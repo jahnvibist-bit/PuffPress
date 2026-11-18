@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>PuffPress Login Test</title>
+</head>
+<body>
+    <h2>🐡 Supabase Login Test</h2>
+
+    <form id="login-form">
+        <input id="email" type="email" placeholder="Email" required />
+        <input id="password" type="password" placeholder="Password" required />
+        <button type="submit">Test Login</button>
+    </form>
+
+    <p id="result"></p>
+
+    <script type="module">
+        import { signInUser, signOutUser } from "./src/supabase.js";
+
+        document.getElementById("login-form").addEventListener(
+            "submit",
+            async (event) => {
+                event.preventDefault();
+
+                const result = document.getElementById("result");
+                result.textContent = "Checking login...";
+
+                try {
+                    const email = document.getElementById("email").value;
+                    const password = document.getElementById("password").value;
+
+                    const data = await signInUser(email, password);
+
+                    result.textContent = data.session
+                        ? "✅ Supabase login successful!"
+                        : "No session returned.";
+
+                    await signOutUser();
+                } catch (error) {
+                    result.textContent = error.message;
+                }
+            }
+        );
+    </script>
+</body>
+</html>
