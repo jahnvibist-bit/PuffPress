@@ -111,7 +111,7 @@
 
 import { supabase } from "./supabase";
 
-const API_BASE = "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 async function apiFetch(path, options = {}) {
   const {
@@ -194,7 +194,7 @@ export const testBinaryStorage = (deviceId) =>
   apiFetch(`/test-binary-storage/${encodeURIComponent(deviceId)}`, {
     method: "POST",
   });
-  
+
 export const getstorage = () => apiFetch("/storage");
 
 export const getDevices = () => apiFetch("/devices");
