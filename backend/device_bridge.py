@@ -163,45 +163,64 @@ async def device_socket(websocket: WebSocket, device_id: str):
             )
 
 
+
 async def send_to_device(device_id: str, message: dict):
-    websocket = connected_devices.get(device_id)
+    last_error = None
 
-    if websocket is None:
-        raise ConnectionError(
-            f"Device {device_id} is offline"
-        )
+    for attempt in range(3):
+        websocket = connected_devices.get(device_id)
 
-    request_id = str(uuid.uuid4())
-    future = asyncio.get_running_loop().create_future()
+        if websocket is None:
+            last_error = ConnectionError(
+                f"Device {device_id} is offline"
+            )
+            if attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            raise last_error
 
-    pending_requests[request_id] = {
-        "device_id": device_id,
-        "future": future,
-    }
+        request_id = str(uuid.uuid4())
+        future = asyncio.get_running_loop().create_future()
 
-    try:
-        await websocket.send_json({
-            **message,
-            "request_id": request_id,
-        })
+        pending_requests[request_id] = {
+            "device_id": device_id,
+            "future": future,
+        }
 
-        return await asyncio.wait_for(
-            future,
-            timeout=20,
-        )
+        try:
+            await websocket.send_json({
+                **message,
+                "request_id": request_id,
+            })
 
-    except (
-        WebSocketDisconnect,
-        RuntimeError,
-        OSError,
-    ) as exc:
-        raise ConnectionError(
-            f"Device {device_id} connection failed"
-        ) from exc
+            response = await asyncio.wait_for(
+                future,
+                timeout=20,
+            )
 
-    finally:
-        pending_requests.pop(request_id, None)
+            return response
 
+        except (
+            ConnectionError,
+            WebSocketDisconnect,
+            RuntimeError,
+            OSError,
+            asyncio.TimeoutError,
+        ) as exc:
+            last_error = exc
+
+            if attempt < 2:
+                await asyncio.sleep(2)
+
+        finally:
+            pending_requests.pop(request_id, None)
+
+            if not future.done():
+                future.cancel()
+
+    raise ConnectionError(
+        f"Device {device_id} transfer failed: {last_error}"
+    )
 
 async def store_browser_chunk(
     device_id: str,
