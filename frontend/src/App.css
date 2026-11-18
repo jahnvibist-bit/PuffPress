@@ -1,184 +1,1194 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
 
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Patrick+Hand&display=swap');
+
+:root {
+  font-family: 'DM Sans', sans-serif;
+  color: #193b57;
+  background: #eaf8ff;
+  font-synthesis: none;
 }
 
-.hero {
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ocean-page {
+  min-height: 100vh;
   position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
+  overflow-x: clip;
+  overflow-y: visible;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 35px,
+      rgba(84, 159, 193, 0.13) 36px,
+      transparent 37px
+    ),
+    #eaf8ff;
 }
 
-#center {
+h1, h2, h3 {
+  font-family: 'Patrick Hand', cursive;
+  margin-top: 0;
+}
+
+h1 {
+  font-size: 42px;
+}
+
+h2 {
+  font-size: 27px;
+}
+
+p {
+  line-height: 1.6;
+}
+
+.sketch-card {
+  position: relative;
+  background: #fffdf5;
+  border: 2px solid #527e9c;
+  border-radius: 15px 20px 14px 19px;
+  box-shadow: 5px 6px 0 rgba(72, 122, 151, 0.14);
+}
+
+/* A complete piece of washi tape straddles the paper edge. */
+.tape {
+  position: absolute;
+  z-index: 3;
+  top: -15px;
+  left: 50%;
+  width: 104px;
+  height: 30px;
+  transform: translateX(-50%) rotate(-5deg);
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(110deg,
+      transparent 0 8px,
+      rgba(255, 255, 255, .15) 8px 11px),
+    rgba(246, 210, 151, .93);
+  border: 1px solid rgba(163, 131, 82, .22);
+  clip-path: polygon(0 13%, 7% 8%, 14% 14%, 22% 7%, 31% 12%,
+    41% 6%, 53% 13%, 65% 8%, 77% 13%, 88% 7%, 100% 14%,
+    98% 86%, 90% 92%, 82% 86%, 72% 94%, 63% 88%, 51% 93%,
+    40% 86%, 29% 94%, 20% 87%, 9% 93%, 0 86%);
+  filter: drop-shadow(1px 2px 1px rgba(53, 94, 112, .15));
+}
+
+.tape-right {
+  left: auto;
+  right: 35px;
+  transform: rotate(6deg);
+  background:
+    repeating-linear-gradient(110deg,
+      transparent 0 8px,
+      rgba(255, 255, 255, .19) 8px 11px),
+    rgba(147, 212, 222, .9);
+  border-color: rgba(57, 127, 144, .25);
+}
+
+/* Welcome screen */
+
+.welcome-page {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.welcome-card {
+  width: min(100%, 460px);
+  padding: 50px 42px 35px;
+  text-align: center;
+  z-index: 2;
+}
+
+.welcome-card .mascot {
+    font-size: 58px;
+    line-height: 1.2;
+    margin: 8px auto 12px;
+}
+
+.welcome-card h1 {
+  margin: 8px 0 0;
+  font-size: 58px;
+  color: #286c93;
+}
+
+.tagline {
+  color: #63849a;
+  font-size: 14px;
+}
+
+.sketch-wave {
+  color: #68c9d0;
+  font-size: 32px;
+  letter-spacing: 5px;
+}
+
+.welcome-card h2 {
+  margin: 12px 0 0;
+}
+
+.welcome-card form {
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
+  gap: 13px;
+  margin-top: 25px;
   text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
 }
 
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
+.welcome-card label {
+  font-size: 14px;
+  font-weight: 700;
 }
 
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
-}
-
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
-
-.ticks {
-  position: relative;
+.welcome-card input {
   width: 100%;
+  border: 2px solid #a9dff5;
+  border-radius: 12px;
+  padding: 14px;
+  outline-color: #68c9d0;
+  background: white;
+}
 
-  &::before,
-  &::after {
-    content: '';
+.primary-btn {
+  border: 2px solid #3d8dad;
+  border-radius: 13px;
+  background: #a9dff5;
+  color: #193b57;
+  padding: 13px 20px;
+  font-weight: 700;
+  box-shadow: 3px 4px 0 #d4e8ee;
+}
+
+.primary-btn:hover {
+  background: #86d2ed;
+}
+
+.tiny-note {
+  margin-top: 20px;
+  font-size: 12px;
+  color: #7994a5;
+}
+
+.doodle {
+  position: absolute;
+  color: #73c4d6;
+  font-size: 55px;
+}
+
+.doodle-one {
+  top: 15%;
+  left: 15%;
+}
+
+.doodle-two {
+  top: 30%;
+  right: 15%;
+}
+
+.doodle-three {
+  bottom: 20%;
+  left: 20%;
+}
+
+.ocean-floor {
+  position: absolute;
+  bottom: -35px;
+  width: 100%;
+  text-align: center;
+  font-size: 130px;
+  color: #a9dff5;
+  white-space: nowrap;
+}
+
+/* Dashboard */
+
+.dashboard {
+  padding-bottom: 70px;
+}
+
+.topbar {
+  height: 85px;
+  padding: 0 7%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 253, 245, 0.85);
+  border-bottom: 2px dashed #a9dff5;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Patrick Hand', cursive;
+  font-size: 32px;
+  font-weight: 700;
+  color: #286c93;
+}
+
+.brand-fish {
+  font-size: 38px;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid #9bcbdc;
+  background: #fffdf5;
+  border-radius: 30px;
+  padding: 6px 15px 6px 6px;
+  color: #193b57;
+  font-weight: 700;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  background: #c8b9ea;
+}
+
+.dashboard-content {
+  width: min(1050px, 90%);
+  margin: 45px auto;
+}
+
+.greeting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.greeting h1 {
+  margin-bottom: 0;
+}
+
+.greeting p {
+  margin-top: 3px;
+  color: #688ba0;
+}
+
+.little-puffer {
+  font-size: 65px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 25px;
+}
+
+.storage-card {
+  padding: 28px;
+}
+
+.card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+
+.card-heading h2 {
+  margin-bottom: 10px;
+}
+
+.storage-value {
+  font-weight: 700;
+  color: #4386a8;
+}
+
+.progress-track {
+  height: 18px;
+  margin-top: 18px;
+  border: 2px solid #527e9c;
+  background: #e6f4f8;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 32%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    45deg,
+    #68c9d0,
+    #68c9d0 8px,
+    #85d7dc 8px,
+    #85d7dc 12px
+  );
+  border-radius: 20px;
+}
+
+.storage-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #6d8fa2;
+}
+
+.devices-summary {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 25px;
+  color: #193b57;
+  text-align: left;
+}
+
+.device-symbol {
+  font-size: 53px;
+  color: #68c9d0;
+}
+
+.devices-summary strong,
+.devices-summary small {
+  display: block;
+}
+
+.devices-summary strong {
+  font-family: 'Patrick Hand', cursive;
+  font-size: 25px;
+}
+
+.devices-summary small {
+  color: #6d8fa2;
+  margin-top: 5px;
+}
+
+.device-count {
+  margin-left: auto;
+  font-size: 28px;
+  font-weight: 700;
+  color: #4386a8;
+}
+
+/* Three pastel bubble actions */
+
+.bubble-section {
+  margin: 48px 0;
+  text-align: center;
+}
+
+.section-caption {
+  font-family: 'Patrick Hand', cursive;
+  font-size: 25px;
+  color: #527e9c;
+}
+
+.bubble-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 55px;
+  margin-top: 25px;
+}
+
+.action-bubble {
+  width: 170px;
+  height: 170px;
+  border: 3px solid #527e9c;
+  border-radius: 48% 52% 50% 47%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #193b57;
+  box-shadow: 6px 8px 0 rgba(65, 127, 160, 0.15);
+  transition: transform 0.2s;
+}
+
+.action-bubble:hover {
+  transform: translateY(-7px) rotate(-3deg);
+}
+
+.bubble-blue {
+  background: #a9dff5;
+  transform: rotate(-4deg);
+}
+
+.bubble-lavender {
+  background: #c8b9ea;
+  transform: rotate(3deg);
+}
+
+.bubble-mint {
+  background: #a7e4d7;
+  transform: rotate(-2deg);
+}
+
+.bubble-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.action-bubble strong {
+  font-family: 'Patrick Hand', cursive;
+  font-size: 27px;
+}
+
+.action-bubble small {
+  margin-top: 4px;
+  color: #527e9c;
+}
+
+/* File list */
+
+.files-card {
+  padding: 30px;
+}
+
+.file-count {
+  font-size: 13px;
+  background: #eaf8ff;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.file-list {
+  margin-top: 15px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 5px;
+  border-bottom: 1px dashed #b5d8e3;
+}
+
+.file-row:last-child {
+  border-bottom: none;
+}
+
+.file-icon {
+  font-size: 27px;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-info strong {
+  overflow-wrap: anywhere;
+}
+
+.file-info small {
+  color: #7895a5;
+  margin-top: 5px;
+}
+
+.icon-button {
+  width: 35px;
+  height: 35px;
+  border: 2px solid #9bcbdc;
+  border-radius: 50%;
+  background: #eaf8ff;
+  color: #286c93;
+  font-size: 23px;
+}
+
+.delete-button {
+  background: #fff0ed;
+  border-color: #e6b4b2;
+  color: #c06b6b;
+}
+
+.empty-state {
+  padding: 40px 0;
+  text-align: center;
+  color: #7895a5;
+}
+
+.empty-state span {
+  font-size: 45px;
+}
+
+.bottom-doodles {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin-top: 45px;
+  color: #68c9d0;
+  font-size: 25px;
+}
+
+/* Popups */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: rgba(25, 59, 87, 0.35);
+}
+
+.modal-card {
+  width: min(100%, 480px);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 35px;
+  text-align: center;
+}
+
+.modal-card h2 {
+  margin: 10px 0;
+}
+
+.modal-card > p {
+  color: #7895a5;
+}
+
+.modal-close {
+  position: absolute;
+  right: 15px;
+  top: 12px;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  color: #527e9c;
+}
+
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 25px 0;
+  padding: 30px 15px;
+  border: 2px dashed #73b8d1;
+  border-radius: 15px;
+  background: #eaf8ff;
+  cursor: pointer;
+}
+
+.upload-zone span {
+  font-size: 42px;
+  color: #4386a8;
+}
+
+.upload-zone small {
+  color: #7895a5;
+}
+
+.upload-zone input {
+  width: 100%;
+  max-width: 250px;
+  font-size: 12px;
+}
+
+.modal-card .primary-btn {
+  width: 100%;
+}
+
+.modal-device {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px;
+  margin-top: 15px;
+  border: 2px dashed #a9dff5;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.modal-device span {
+  font-size: 32px;
+}
+
+.modal-device div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.modal-device small {
+  color: #7895a5;
+}
+
+.pair-code {
+  margin: 20px 0;
+  padding: 15px;
+  border: 2px dashed #68c9d0;
+  border-radius: 12px;
+  background: #eaf8ff;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 6px;
+}
+
+.qr-placeholder {
+  width: 180px;
+  height: 180px;
+  display: grid;
+  place-items: center;
+  margin: 20px auto;
+  background: white;
+  border: 2px solid #527e9c;
+  border-radius: 10px;
+  font-size: 65px;
+}
+
+
+/* ===== PuffPress notebook layout: desktop, tablet and phone ===== */
+
+/* Grid gives the header its own FULL-WIDTH row. The sidebar is a page below it. */
+.dashboard {
+  --sidebar-width: 220px;
+  --topbar-height: 85px;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.dashboard .topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
+  height: var(--topbar-height);
+  margin: 0;
+  padding: 0 clamp(18px, 3vw, 44px);
+  background: #fffdf5;
+  border-bottom: 2px dashed #9bd3e6;
+  box-shadow: 0 3px 12px rgba(45, 114, 148, .07);
+}
+
+/* Header already says PuffPress. Hide the duplicate label in the sidebar. */
+.notebook-sidebar {
+  grid-column: 1;
+  grid-row: 2;
+  position: sticky;
+  top: var(--topbar-height);
+  align-self: start;
+  z-index: 10;
+  width: var(--sidebar-width);
+  height: calc(100dvh - var(--topbar-height));
+  min-height: 0;
+  padding: 65px 15px 22px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background:
+    repeating-linear-gradient(to bottom,
+      transparent 0 35px,
+      rgba(84, 159, 193, .12) 36px,
+      transparent 37px),
+    #d9f1fc;
+  border-right: 2px solid #80b5ce;
+  box-shadow: inset -5px 0 12px rgba(62, 137, 168, .06);
+}
+
+.sidebar-brand { display: none; }
+
+/* Small visible coils at the TOP of the sidebar page. */
+.spiral-binding {
+  position: absolute;
+  top: 9px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  justify-content: space-around;
+  pointer-events: none;
+}
+.spiral-binding span {
+  width: 14px;
+  height: 27px;
+  border: 3px solid #648ba2;
+  border-radius: 50%;
+  background: #fffdf5;
+  transform: rotate(-7deg);
+}
+
+.sidebar-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sidebar-link {
+  width: 100%;
+  min-height: 51px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: #28536f;
+  text-align: left;
+  font: 23px 'Patrick Hand', cursive;
+  transition: background .2s, transform .2s;
+}
+.sidebar-link span { font-size: 26px; }
+.sidebar-link:hover { transform: translateX(3px); }
+.sidebar-link.active,
+.sidebar-link:hover {
+  background: #fffdf5;
+  box-shadow: 3px 4px 0 rgba(72, 122, 151, .13);
+}
+.sidebar-ocean {
+  margin-top: auto;
+  padding-top: 20px;
+  text-align: center;
+  font-size: 25px;
+}
+
+.dashboard .dashboard-content {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  width: calc(100% - 48px);
+  max-width: 1150px;
+  margin: 42px auto 64px;
+  padding: 0;
+  transform: none;
+}
+
+.dashboard .overview-grid {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.dashboard .overview-grid > *,
+.dashboard .storage-card,
+.dashboard .devices-summary,
+.dashboard .device-page-list,
+.dashboard .file-list { min-width: 0; }
+
+.devices-summary strong { overflow-wrap: anywhere; }
+.storage-value { text-align: right; }
+.bubble-actions { gap: clamp(14px, 4vw, 50px); }
+
+/* Keep card tape intact and in front of the paper edge. */
+.sketch-card { overflow: visible; }
+.sketch-card > .tape { pointer-events: none; }
+
+.device-page-list { margin-top: 14px; }
+.device-page-list .modal-device { width: 100%; }
+.device-page-list .modal-device > div { min-width: 0; flex: 1; }
+.device-page-list .modal-device strong { overflow-wrap: anywhere; }
+.device-remove-button { flex: 0 0 auto; margin-left: auto; }
+
+.help-page h3 { margin: 25px 0 6px; color: #286c93; }
+.help-page p { overflow-wrap: anywhere; }
+
+.mobile-bottom-nav { display: none; }
+.mobile-bottom-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 13px;
+  padding: 6px 4px;
+  background: transparent;
+  color: #527e9c;
+}
+.mobile-bottom-nav button span { font-size: 25px; line-height: 1.15; }
+.mobile-bottom-nav button small { font-size: 11px; }
+.mobile-bottom-nav button.active { background: #d9f1fc; color: #193b57; }
+
+/* Pairing popup is scrollable when the phone screen is short. */
+.modal-backdrop { overflow-y: auto; }
+.modal-card {
+  position: relative;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+/* Inside scrollable modal the tape must stay fully IN the card. */
+.modal-card > .tape { top: 9px; }
+.modal-card img { max-width: 100%; height: auto; }
+
+/* Notebook-colored scrollbar */
+html { scrollbar-color: #8dc9df #eaf8ff; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 8px; }
+::-webkit-scrollbar-track { background: #eaf8ff; }
+::-webkit-scrollbar-thumb {
+  border: 2px solid #eaf8ff;
+  border-radius: 20px;
+  background: #8dc9df;
+}
+::-webkit-scrollbar-thumb:hover { background: #5da9c8; }
+
+/* Final notebook polish: floating binder and unified heading */
+.brand-with-greeting .brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.05;
+}
+.brand-with-greeting .brand-copy small {
+  margin-top: 5px;
+  color: #688ba0;
+  font: 500 clamp(12px, 1.25vw, 15px) 'DM Sans', sans-serif;
+  line-height: 1.35;
+}
+.notebook-sidebar {
+  width: calc(var(--sidebar-width) - 24px);
+  height: calc(100dvh - var(--topbar-height) - 30px);
+  margin: 15px 0 15px 12px;
+  top: calc(var(--topbar-height) + 15px);
+  border: 2px solid #80b5ce;
+  border-radius: 20px;
+  box-shadow: 4px 6px 0 rgba(72,122,151,.13);
+  padding-top: 65px;
+}
+.spiral-binding { top: 13px; }
+.spiral-binding span {
+  background: transparent;
+  border-color: #638ba2;
+  height: 28px;
+  width: 16px;
+  box-shadow: inset 0 0 0 2px #d9f1fc;
+}
+/* Tape is fully visible inside scrollable dialogs and does not cover headings. */
+.modal-card { padding-top: 47px; }
+.modal-card > .tape {
+  top: 10px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%) rotate(-5deg);
+  width: 104px;
+  height: 28px;
+}
+/* Paper-card tapes stay centered over their own card edges. */
+.storage-card > .tape,
+.files-card > .tape,
+.device-page-list > .tape {
+  top: -13px;
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  .dashboard { --sidebar-width: 190px; }
+  .dashboard .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .action-bubble { width: 145px; height: 145px; }
+}
+
+@media (max-width: 720px) {
+  .dashboard {
+    --sidebar-width: 0px;
+    --topbar-height: 68px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+    padding-bottom: 110px;
+  }
+  .notebook-sidebar { display: none; }
+  .dashboard .topbar {
+    grid-column: 1;
+    height: var(--topbar-height);
+    padding-inline: 16px;
+  }
+  .brand { font-size: 25px; }
+  .brand-fish { font-size: 30px; }
+  .profile { max-width: 55%; overflow: hidden; text-overflow: ellipsis; }
+  .dashboard .dashboard-content {
+    grid-column: 1;
+    grid-row: 2;
+    width: calc(100% - 32px);
+    max-width: none;
+    margin: 30px auto 0;
+  }
+  .greeting h1 { font-size: 35px; }
+  .little-puffer { font-size: 45px; }
+  .dashboard .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .bubble-actions { gap: 12px; }
+  .action-bubble {
+    width: clamp(84px, 26vw, 125px);
+    height: clamp(84px, 26vw, 125px);
+  }
+  .bubble-icon { font-size: 32px; }
+  .action-bubble strong { font-size: clamp(18px, 5vw, 22px); }
+  .action-bubble small { font-size: 11px; }
+  .storage-card, .files-card { padding: 20px; }
+  .welcome-card { padding: 30px 22px; }
+  .file-row { gap: 8px; }
+  .device-page-list .modal-device { padding: 12px; gap: 10px; }
+  .device-page-list .modal-device span { font-size: 24px; }
+  .mobile-bottom-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 50;
+    display: flex;
+    justify-content: space-around;
+    gap: 4px;
+    padding: 8px 8px max(10px, env(safe-area-inset-bottom));
+    background: #fffdf5;
+    border-top: 2px dashed #80b5ce;
+    box-shadow: 0 -2px 12px rgba(44, 92, 120, .08);
+  }
+  .modal-backdrop { padding: 10px; }
+  .modal-card {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    padding: 30px 18px 24px;
+  }
+  .pair-code { font-size: clamp(22px, 6vw, 32px); letter-spacing: 3px; }
+}
+
+/* Phone: preserve bottom navigation and keep unified header compact. */
+@media (max-width: 720px) {
+  .brand-with-greeting .brand-copy small {
+    max-width: 48vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .modal-card { padding-top: 47px; }
+}
+
+
+/* =========================================
+   PUFFPRESS — FINAL TAPE & SPIRAL FIX
+   Keep the existing frontend design
+   ========================================= */
+
+/* 1. PRESERVE ALL EXISTING WASHI TAPES */
+
+.sketch-card {
+  position: relative;
+  overflow: visible;
+}
+
+.sketch-card > .tape {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Cards: tape sits above the paper edge */
+
+.sketch-card > .tape,
+.sketch-card > .tape.tape-right {
+  top: -25px;
+}
+
+/* Preserve the blue tape on right-aligned cards */
+
+.sketch-card > .tape.tape-right {
+  left: auto;
+  right: 35px;
+  transform: rotate(6deg);
+}
+
+/* 2. UPLOAD / ADD DEVICE MODAL TAPE */
+
+/* Popup */
+.modal-card {
+  position: relative;
+  padding: 58px 35px 35px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Tape completely inside popup */
+.modal-card > .tape {
+  top: 12px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%) rotate(-5deg);
+  z-index: 8;
+}
+
+/* Backdrop */
+.modal-backdrop {
+  overflow-y: auto;
+}
+/* 3. NOTEBOOK SIDEBAR — TOP SPIRAL BINDING */
+
+@media (min-width: 721px) {
+
+  .notebook-sidebar {
+    position: sticky;
+    overflow: visible;
+
+    /* Space for rings */
+    padding-top: 65px;
+  }
+
+  .spiral-binding {
     position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
+
+    /* Top edge of notebook */
+    top: -13px;
+    left: 12px;
+    right: 12px;
+    bottom: auto;
+
+    width: auto;
+    height: 30px;
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+
+    gap: 4px;
+
+    pointer-events: none;
+    z-index: 20;
   }
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+  /* Blue metal spiral loops */
+
+/* Realistic metallic notebook rings */
+  /* Realistic metallic notebook rings */
+  .spiral-binding span {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 29px;
+
+    border: 3px solid #5b8199;
+    border-left-color: #c8e2ee;
+    border-top-color: #a9d1e3;
+    border-right-color: #3e6d89;
+    border-bottom-color: #507a95;
+
+    border-radius: 50%;
+    background: transparent;
+
+    transform: rotate(-12deg);
+
+    box-shadow:
+      2px 2px 2px rgba(27, 67, 94, 0.25),
+      inset 1px 1px 1px rgba(255, 255, 255, 0.7),
+      -1px -1px 0 rgba(255, 255, 255, 0.6);
+    }
+}
+/* Move popup tape above the border */
+.modal-card {
+  overflow: visible;
+  position: relative;
+}
+
+.modal-card > .tape {
+  top: -15px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%) rotate(-5deg);
+  z-index: 10;
+}
+/* Welcome logo: prevent title/tagline overlap */
+.welcome-card .mascot {
+  font-size: 44px;
+  line-height: 1.2;
+  margin: 0 0 10px;
+}
+
+.welcome-card h1 {
+  font-size: 48px;
+  line-height: 1.3;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.welcome-card p.tagline {
+  position: static;
+  display: block;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+  padding: 0;
+  transform: none;
+}
+/* Black text in all input fields */
+input,
+textarea,
+select {
+  color: #111111;
+  -webkit-text-fill-color: #111111;
+}
+
+/* Keep placeholder text soft grey */
+input::placeholder,
+textarea::placeholder {
+  color: #888888;
+  -webkit-text-fill-color: #888888;
+}
+
+/* Password dots also appear black */
+input[type="password"] {
+  color: #111111;
+  -webkit-text-fill-color: #111111;
+}
+/* Make typed text visible */
+input,
+input:focus,
+textarea,
+textarea:focus {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  background-color: #ffffff;
+  opacity: 1;
+  caret-color: #111111;
+}
+
+/* Name and password inputs */
+input[type="text"],
+input[type="password"] {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+}
+
+/* Placeholder */
+input::placeholder {
+  color: #777777 !important;
+  -webkit-text-fill-color: #777777 !important;
+}select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid #c2e3f1;
+    border-radius: 12px;
+    background: #f9fdff;
+    color: #234c65;
+    font-size: 15px;
 }

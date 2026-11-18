@@ -1,0 +1,407 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PuffPress Device Agent</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eaf7ff;
+      color: #234c65;
+      text-align: center;
+      padding: 45px 18px;
+    }
+
+    .card {
+      background: white;
+      max-width: 420px;
+      margin: auto;
+      padding: 30px 20px;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(35, 76, 101, 0.1);
+    }
+
+    h2 { margin-bottom: 22px; }
+
+    #status {
+      font-size: 18px;
+      font-weight: bold;
+      color: #c58b20;
+    }
+
+    #device {
+      font-size: 13px;
+      overflow-wrap: anywhere;
+      color: #67869a;
+    }
+
+    #details {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #67869a;
+    }
+
+    button {
+      background: #8ed4f2;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h2>🐡 PuffPress Storage Node</h2>
+    <p id="status">Checking pairing...</p>
+    <p id="device"></p>
+    <p id="details"></p>
+    <button id="retryBtn" type="button" hidden>
+      Retry Connection
+    </button>
+  </div>
+
+  <script>
+    "use strict";
+
+    const deviceId =
+      localStorage.getItem("puffpress-device-id");
+
+    const token =
+      localStorage.getItem("puffpress-device-token");
+
+    const statusEl = document.getElementById("status");
+    const deviceEl = document.getElementById("device");
+    const detailsEl = document.getElementById("details");
+    const retryBtn = document.getElementById("retryBtn");
+
+    const DB_NAME = "puffpress-device-storage";
+    const STORE_NAME = "chunks";
+
+    let socket = null;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
+    let authenticationRejected = false;
+
+    function setStatus(message, color, details = "") {
+      statusEl.textContent = message;
+      statusEl.style.color = color;
+      detailsEl.textContent = details;
+    }
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+
+        request.onupgradeneeded = () => {
+          const db = request.result;
+
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function saveChunk(chunkId, data) {
+      const db = await openDatabase();
+
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+
+        tx.objectStore(STORE_NAME).put(data, chunkId);
+
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error || new Error("Transaction aborted"));
+        };
+      });
+    }
+
+    async function getChunk(chunkId) {
+      const db = await openDatabase();
+
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const request = tx.objectStore(STORE_NAME).get(chunkId);
+
+        request.onsuccess = () => {
+          resolve(request.result);
+        };
+
+        request.onerror = () => {
+          reject(request.error);
+        };
+
+        tx.oncomplete = () => db.close();
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error || new Error("Transaction aborted"));
+        };
+      });
+    }
+
+    async function deleteChunk(chunkId) {
+      const db = await openDatabase();
+
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+
+        tx.objectStore(STORE_NAME).delete(chunkId);
+
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error || new Error("Transaction aborted"));
+        };
+      });
+    }
+
+    async function handleMessage(event, activeSocket) {
+      let message;
+      let requestId;
+
+      try {
+        message = JSON.parse(event.data);
+        requestId = message.request_id;
+
+        const { action, chunk_id, data } = message;
+        let result;
+
+        if (action === "STORE") {
+          if (typeof data !== "string") {
+            throw new Error("Invalid chunk data");
+          }
+
+          await saveChunk(chunk_id, data);
+          result = { status: "stored" };
+
+        } else if (action === "GET") {
+          const saved = await getChunk(chunk_id);
+
+          if (saved === undefined) {
+            throw new Error("Chunk not found");
+          }
+
+          result = {
+            status: "found",
+            data: saved
+          };
+
+        } else if (action === "DELETE") {
+          await deleteChunk(chunk_id);
+          result = { status: "deleted" };
+
+        } else {
+          throw new Error("Unknown action");
+        }
+
+        if (activeSocket.readyState === WebSocket.OPEN) {
+          activeSocket.send(JSON.stringify({
+            request_id: requestId,
+            ...result
+          }));
+        }
+
+      } catch (error) {
+        if (activeSocket.readyState === WebSocket.OPEN) {
+          activeSocket.send(JSON.stringify({
+            request_id: requestId,
+            status: "error",
+            detail: error.message
+          }));
+        }
+      }
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer || authenticationRejected) return;
+
+      reconnectAttempts++;
+
+      const delay = Math.min(
+        1000 * Math.pow(2, Math.min(reconnectAttempts - 1, 4)),
+        15000
+      );
+
+      setStatus(
+        "Disconnected",
+        "#cc694e",
+        `Retrying connection in ${Math.ceil(delay / 1000)} seconds...`
+      );
+
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectDevice();
+      }, delay);
+    }
+
+    function connectDevice() {
+      if (!deviceId || !token) {
+        setStatus(
+          "Pairing required",
+          "#cc694e",
+          "Open PuffPress on your laptop and pair this phone using QR + code."
+        );
+        retryBtn.hidden = true;
+        return;
+      }
+
+      if (socket &&
+          (socket.readyState === WebSocket.OPEN ||
+           socket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
+      if (authenticationRejected) {
+        setStatus(
+          "Pairing verification failed",
+          "#cc694e",
+          "The saved device credentials were rejected. Check your pairing."
+        );
+        return;
+      }
+
+      deviceEl.textContent = `Device ID: ${deviceId}`;
+
+      setStatus(
+        "Connecting...",
+        "#c58b20",
+        "Connecting to PuffPress backend."
+      );
+
+      retryBtn.hidden = true;
+
+      const protocol =
+      location.protocol === "https:" ? "wss:" : "ws:";
+
+      const isLocalDev =
+      location.protocol === "http:" &&
+        (location.port === "5173" || location.port === "5174");
+
+      const wsHost = isLocalDev
+      ? `${location.hostname}:8000`
+      : location.host;
+
+      const wsUrl =
+      `${protocol}//${wsHost}/ws/device/` +
+      `${encodeURIComponent(deviceId)}` +
+      `?token=${encodeURIComponent(token)}`;
+
+      const activeSocket = new WebSocket(wsUrl);
+      socket = activeSocket;
+
+      let wasConnected = false;
+
+      activeSocket.onopen = () => {
+        wasConnected = true;
+        reconnectAttempts = 0;
+
+        setStatus(
+          "Connected! 🟢",
+          "#2c9b65",
+          "Your phone is ready to store PuffPress chunks."
+        );
+      };
+
+      activeSocket.onmessage = (event) => {
+        handleMessage(event, activeSocket);
+      };
+
+      activeSocket.onerror = () => {
+        setStatus(
+          "Connection error",
+          "#cc694e",
+          "Unable to establish a WebSocket connection."
+        );
+      };
+
+      activeSocket.onclose = (event) => {
+        if (socket !== activeSocket) return;
+
+        socket = null;
+
+        if (event.code === 1008) {
+          authenticationRejected = true;
+          retryBtn.hidden = true;
+
+          setStatus(
+            "Pairing verification failed",
+            "#cc694e",
+            "Backend rejected this device's saved credentials."
+          );
+          return;
+        }
+
+        // A server-side rejection before the WebSocket
+        // handshake may appear as code 1006 in browsers.
+        if (!wasConnected && event.code === 1006) {
+          retryBtn.hidden = false;
+          setStatus(
+            "Connection rejected or unavailable",
+            "#cc694e",
+            "Check backend logs. The device ID/token may not match."
+          );
+          return;
+        }
+
+        scheduleReconnect();
+      };
+    }
+
+    retryBtn.addEventListener("click", () => {
+      authenticationRejected = false;
+      reconnectAttempts = 0;
+      retryBtn.hidden = true;
+      connectDevice();
+    });
+
+    window.addEventListener("online", () => {
+      if (!authenticationRejected) {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        connectDevice();
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+
+      if (socket) {
+        socket.close(1000, "Page closed");
+      }
+    });
+
+    connectDevice();
+  </script>
+</body>
+</html>

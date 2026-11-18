@@ -1,0 +1,280 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PuffPress - Pair Device</title>
+    
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: "Trebuchet MS", Arial, sans-serif;
+        background: #eaf7ff;
+        color: #234c65;
+        text-align: center;
+    }
+
+    body::before {
+        content: "🐡";
+        font-size: 52px;
+        margin-bottom: 16px;
+    }
+
+    h2 {
+        margin: 0 0 10px;
+        font-size: 27px;
+        color: #326b88;
+    }
+
+    body > p {
+        max-width: 340px;
+        margin: 0 auto 18px;
+        line-height: 1.6;
+        font-size: 14px;
+    }
+
+    form {
+        width: 100%;
+        max-width: 360px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 24px;
+        background: white;
+        border: 2px solid #c2e3f1;
+        border-radius: 22px;
+        box-shadow: 0 10px 30px rgba(35, 76, 101, 0.08);
+    }
+
+    input {
+        width: 100%;
+        padding: 14px 16px;
+        border: 2px solid #c2e3f1;
+        border-radius: 12px;
+        background: #f9fdff;
+        color: #234c65;
+        font-size: 15px;
+        outline: none;
+    }
+
+    input:focus {
+        border-color: #8ed4f2;
+        box-shadow: 0 0 0 3px #e2f6ff;
+    }
+
+    button {
+        width: 100%;
+        padding: 14px;
+        background: #8ed4f2;
+        color: #234c65;
+        border: none;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #76c9ed;
+    }
+
+    button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+    }
+
+    #message {
+        margin-top: 16px;
+        min-height: 22px;
+        font-size: 14px;
+        font-weight: bold;
+        color: #326b88;
+    }
+
+    @media (max-width: 480px) {
+        body {
+            padding: 18px;
+        }
+
+        h2 {
+            font-size: 24px;
+        }
+
+        form {
+            padding: 20px;
+        }
+    }
+</style>
+
+</head>
+<body>
+    <h2>Pair with PuffPress</h2>
+    <p>Enter the 6-digit code shown on your laptop.</p>
+
+    <form id="pairForm" novalidate>
+        <input
+            id="passcode"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="6-digit code"
+            required
+        >
+
+        <input
+            id="deviceName"
+            type="text"
+            placeholder="Enter device name (e.g. My Samsung)"
+            maxlength="50"
+            required
+        >
+        <label for="storageAmount">
+    How much storage do you want to contribute?
+</label>
+
+<input
+    id="storageAmount"
+    type="number"
+    min="1"
+    step="1"
+    placeholder="Enter storage amount"
+    required
+>
+
+<select id="storageUnit">
+    <option value="MB">MB</option>
+    <option value="GB">GB</option>
+</select>
+        <button type="submit">Connect Device</button>
+    </form>
+
+    <p id="message"></p>
+
+    <script>
+        "use strict";
+
+        const params = new URLSearchParams(location.search);
+        const pairingId = params.get("pairing_id");
+
+        let deviceId = localStorage.getItem("puffpress-device-id");
+
+        if (!deviceId) {
+    deviceId = "device-" + Array.from(
+        crypto.getRandomValues(new Uint8Array(16)),
+        byte => byte.toString(16).padStart(2, "0")
+    ).join("");
+
+    localStorage.setItem("puffpress-device-id", deviceId);
+}
+
+        const isLocalDev =
+            location.protocol === "http:" &&
+            (location.port === "5173" || location.port === "5174");
+
+        const apiBase = isLocalDev
+            ? `http://${location.hostname}:8000`
+            : "";
+
+        const pairForm = document.getElementById("pairForm");
+        const message = document.getElementById("message");
+
+        pairForm.addEventListener("submit", async (event) => {
+            alert("Submit function started!");
+            event.preventDefault();
+            const passcode =
+                document.getElementById("passcode").value.trim();
+
+            const deviceName =
+                document.getElementById("deviceName").value.trim();
+            const storageAmount = Number(
+            document.getElementById("storageAmount").value
+            );
+
+            const storageUnit =
+            document.getElementById("storageUnit").value;
+
+            const allocatedGb =
+            storageUnit === "MB"
+            ? storageAmount / 1024
+            : storageAmount;
+
+            if (!Number.isFinite(allocatedGb) || allocatedGb <= 0) {
+            message.textContent = "Enter a valid storage amount.";
+            return;
+            }
+            if (!pairingId) {
+                message.textContent =
+                    "Missing pairing ID. Scan QR again.";
+                return;
+            }
+
+            if (!deviceName) {
+                message.textContent = "Enter a device name.";
+                return;
+            }
+
+            const submitButton =
+                pairForm.querySelector('button[type="submit"]');
+
+            submitButton.disabled = true;
+            message.textContent = "Connecting device...";
+
+            try {
+                const response = await fetch(
+                    `${apiBase}/pairing/verify`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                        pairing_id: pairingId,
+                        passcode: passcode,
+                       device_id: deviceId,
+                        device_name: deviceName,
+                        allocated_gb: allocatedGb
+                        })
+                    }
+                );
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        typeof result.detail === "string"
+                            ? result.detail
+                            : "Pairing failed"
+                    );
+                }
+
+                localStorage.setItem(
+                    "puffpress-device-token",
+                    result.device_token
+                );
+
+                message.textContent = "Paired successfully!";
+
+                location.href = "/device.html";
+
+            } catch (error) {
+                message.textContent =
+                    error.message || "Unable to connect device.";
+
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
