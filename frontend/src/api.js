@@ -111,8 +111,11 @@
 
 import { supabase } from "./supabase";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
-
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV
+    ? "http://localhost:8000"
+    : "https://puffpress.onrender.com");
 async function apiFetch(path, options = {}) {
   const {
     data: { session },

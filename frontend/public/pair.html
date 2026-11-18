@@ -185,15 +185,15 @@
         (location.port === "5173" || location.port === "5174");
 
         const apiBase = isLocalDev
-    ? `http://${location.hostname}:8000`
-    : "https://puffpress.onrender.com";
+        ? `http://${location.hostname}:8000`
+        : "https://puffpress.onrender.com";
 
 
         const pairForm = document.getElementById("pairForm");
         const message = document.getElementById("message");
 
         pairForm.addEventListener("submit", async (event) => {
-
+            alert("Submit function started!");
             event.preventDefault();
             const passcode =
                 document.getElementById("passcode").value.trim();

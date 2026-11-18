@@ -233,12 +233,18 @@ async def device_socket(websocket: WebSocket, device_id: str):
         "http://localhost:4173",
         "http://127.0.0.1:4173",
         "http://10.93.125.38:8000",
+        "https://puffpress-frontend.vercel.app",
     }
 
     public_origin = os.environ.get(
-        "PUFFPRESS_PUBLIC_ORIGIN", ""
+    "PUFFPRESS_FRONTEND_ORIGIN", ""
+).rstrip("/")
+    frontend_origin = os.environ.get(
+    "PUFFPRESS_FRONTEND_ORIGIN", ""
     ).rstrip("/")
 
+    if frontend_origin:
+        allowed_origins.add(frontend_origin)
     if public_origin:
         allowed_origins.add(public_origin)
 

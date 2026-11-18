@@ -299,14 +299,12 @@
 
       retryBtn.hidden = true;
 
-      const protocol =
-      location.protocol === "https:" ? "wss:" : "ws:";
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 
       const isLocalDev =
       location.protocol === "http:" &&
-        (location.port === "5173" || location.port === "5174");
+      (location.port === "5173" || location.port === "5174");
 
-      
     const wsHost = isLocalDev
     ? `${location.hostname}:8000`
     : "puffpress.onrender.com";

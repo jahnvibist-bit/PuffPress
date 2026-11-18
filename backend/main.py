@@ -2040,9 +2040,14 @@ def make_pairing_qr_png(pairing_id: str, frontend_origin: str):
     return buffer.getvalue()
 
 
+
 @app.post("/pairing/create", dependencies=[Depends(require_supabase_user)])
-def create_pairing(request: Request, user_id: str = Depends(require_supabase_user)):
+def create_pairing(
+    request: Request,
+    user_id: str = Depends(require_supabase_user)
+):
     frontend_url = get_pairing_frontend_origin(request)
+
     pairing_id = secrets.token_urlsafe(16)
     passcode = f"{secrets.randbelow(1000000):06d}"
 
@@ -2053,8 +2058,15 @@ def create_pairing(request: Request, user_id: str = Depends(require_supabase_use
         "user_id": user_id,
     }
 
-    qr_png = make_pairing_qr_png(pairing_id, frontend_url)
-    qr_image = "data:image/png;base64," + base64.b64encode(qr_png).decode("ascii")
+    qr_png = make_pairing_qr_png(
+        pairing_id,
+        frontend_url
+    )
+
+    qr_image = (
+        "data:image/png;base64,"
+        + base64.b64encode(qr_png).decode("ascii")
+    )
 
     return {
         "pairing_id": pairing_id,
@@ -2062,7 +2074,6 @@ def create_pairing(request: Request, user_id: str = Depends(require_supabase_use
         "expires_in": PAIRING_EXPIRY,
         "qr_image": qr_image,
     }
-
 
 @app.get("/pairing/qr/{pairing_id}")
 def pairing_qr(pairing_id: str, request: Request):
