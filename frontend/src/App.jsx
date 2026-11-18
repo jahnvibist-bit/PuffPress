@@ -951,14 +951,15 @@ function App() {
     try {
       if (signupMode) {
         const result = await signUpUser(email.trim(), password);
-        if (!result.session) {
-          setLoginError("Account created. Confirm your email, then sign in.");
-          setSignupMode(false);
-          return;
-        }
+      if (!result.session) {
+        alert("📩 Check your email!\n\nWe've sent you a verification link. Please confirm your email before signing in.");
+        setLoginError("");
+        setSignupMode(false);
+        return;
+      }
       } else {
         await loginOwner(email.trim(), password);
-      }
+      }http://localhost:5174/http://localhost:5174/
       setAuthenticated(true);
       setPassword("");
     } catch (err) {
@@ -1636,22 +1637,24 @@ if (!authenticated) {
                   second device.
                 </p>
 
-                {pairing?.pairing_id && (
-                  <img
-                    src={`${API_BASE}/pairing/qr/${encodeURIComponent(pairing.pairing_id)}`}
-                    alt="Device pairing QR"
-                    style={{
-                      width: 210,
-                      height: 210,
-                      maxWidth: "100%",
-                      margin: "20px auto",
-                      display: "block",
-                      background: "white",
-                      padding: 10,
-                      borderRadius: 14,
-                    }}
-                  />
-                )}
+                
+{pairing?.qr_image && (
+  <img
+    src={pairing.qr_image}
+    alt="Device pairing QR"
+    style={{
+      width: 210,
+      height: 210,
+      maxWidth: "100%",
+      margin: "20px auto",
+      display: "block",
+      background: "white",
+      padding: 10,
+      borderRadius: 14,
+    }}
+  />
+)}
+
 
                 <p>Your pairing code:</p>
 

@@ -2012,8 +2012,36 @@ def about():
 # PAIRING
 # ---------------------------------------
 
+def get_pairing_frontend_origin(request: Request):
+    configured = os.environ.get("PUFFPRESS_FRONTEND_ORIGIN", "").rstrip("/")
+    if configured:
+        return configured
+
+    # Local development: use the frontend origin that initiated pairing.
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin in (
+        "http://localhost:5173", "http://127.0.0.1:5173",
+        "http://localhost:5174", "http://127.0.0.1:5174",
+    ):
+        return origin
+
+    raise HTTPException(
+        status_code=503,
+        detail="PUFFPRESS_FRONTEND_ORIGIN is not configured",
+    )
+
+
+def make_pairing_qr_png(pairing_id: str, frontend_origin: str):
+    pairing_url = f"{frontend_origin}/pair.html?pairing_id={pairing_id}"
+    qr = qrcode.make(pairing_url)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 @app.post("/pairing/create", dependencies=[Depends(require_supabase_user)])
-def create_pairing(user_id: str = Depends(require_supabase_user)):
+def create_pairing(request: Request, user_id: str = Depends(require_supabase_user)):
+    frontend_url = get_pairing_frontend_origin(request)
     pairing_id = secrets.token_urlsafe(16)
     passcode = f"{secrets.randbelow(1000000):06d}"
 
@@ -2024,58 +2052,34 @@ def create_pairing(user_id: str = Depends(require_supabase_user)):
         "user_id": user_id,
     }
 
+    qr_png = make_pairing_qr_png(pairing_id, frontend_url)
+    qr_image = "data:image/png;base64," + base64.b64encode(qr_png).decode("ascii")
+
     return {
         "pairing_id": pairing_id,
         "passcode": passcode,
         "expires_in": PAIRING_EXPIRY,
+        "qr_image": qr_image,
     }
 
 
 @app.get("/pairing/qr/{pairing_id}")
 def pairing_qr(pairing_id: str, request: Request):
+    # Kept for backwards compatibility. The web app uses qr_image from create.
     session = pairing_sessions.get(pairing_id)
-
     if session is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Pairing session not found",
-        )
-
+        raise HTTPException(status_code=404, detail="Pairing session not found")
     if session["used"] or time.time() > session["expires_at"]:
-        raise HTTPException(
-            status_code=410,
-            detail="Pairing session expired or used",
-        )
+        raise HTTPException(status_code=410, detail="Pairing session expired or used")
 
-    frontend_origin = os.environ.get(
-        "PUFFPRESS_FRONTEND_ORIGIN",
-        ""
-    ).rstrip("/")
-
-    if frontend_origin:
-        base_url = frontend_origin
-    else:
-        host = request.url.hostname
-
-        if host in ("localhost", "127.0.0.1"):
-            raise HTTPException(
-                status_code=400,
-                detail="Open this endpoint using your laptop's LAN IP",
-            )
-
-        base_url = f"http://{host}:5173"
-
-    pairing_url = f"{base_url}/pair.html?pairing_id={pairing_id}"
-
-    qr = qrcode.make(pairing_url)
-    buffer = io.BytesIO()
-    qr.save(buffer, format="PNG")
-
+    frontend_url = get_pairing_frontend_origin(request)
     return Response(
-        content=buffer.getvalue(),
+        content=make_pairing_qr_png(pairing_id, frontend_url),
         media_type="image/png",
         headers={"Cache-Control": "no-store"},
     )
+
+
 @app.post("/pairing/verify")
 def verify_pairing(data: PairingVerifyRequest):
     with pairing_attempts_lock:
