@@ -854,7 +854,7 @@ if (!authenticated) {
     )}
 
     <a
-      href={`https://puffpress-frontend.vercel.app/pair.html?pairing_id=${encodeURIComponent(pairing.pairing_id)}`}
+      href={`https://puffpress-frontend.vercel.app/pair.html#pairing_id=${encodeURIComponent(pairing.pairing_id)}`}
       target="_blank"
       rel="noopener noreferrer"
       style={{

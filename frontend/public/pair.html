@@ -166,7 +166,9 @@
         "use strict";
 
         const params = new URLSearchParams(location.search);
-        const pairingId = params.get("pairing_id");
+        const pairingId =
+  new URLSearchParams(location.search).get("pairing_id") ||
+  new URLSearchParams(location.hash.slice(1)).get("pairing_id");
 
         let deviceId = localStorage.getItem("puffpress-device-id");
 
