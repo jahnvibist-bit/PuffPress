@@ -2188,10 +2188,10 @@ def verify_pairing(data: PairingVerifyRequest):
 
             conn.execute("""
                 INSERT INTO devices (
-                    id, name, url, total_gb, used_gb, user_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
+                    id, name, url, total_gb, used_gb, user_id, device_type
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
                 data.device_id,
                 data.device_name.strip() or "Paired Phone",
                 f"browser://{data.device_id}",
