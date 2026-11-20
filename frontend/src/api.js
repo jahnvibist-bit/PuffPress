@@ -265,3 +265,14 @@ export async function downloadFile(fileId) {
 
   return res.blob();
 }
+export const updateDeviceDetails = (id, name, deviceType) =>
+  apiFetch(`/devices/${encodeURIComponent(id)}/details`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name: name,
+      device_type: deviceType
+    })
+  });
