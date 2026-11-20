@@ -2592,6 +2592,9 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
                 ))
 
     except Exception as error:
+        import traceback
+        print("ACTUAL UPLOAD ERROR:", flush=True)
+        traceback.print_exc()
         cleanup_failed = []
 
         for device_id, node_url, chunk_id in reversed(
