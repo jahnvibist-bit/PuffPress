@@ -1700,6 +1700,15 @@ def init_database():
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
         if "priority" not in columns:
             conn.execute("ALTER TABLE devices ADD COLUMN priority INTEGER NOT NULL DEFAULT 3")
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(files)")
+        }
+
+        if "status" not in columns:
+            conn.execute(
+                "ALTER TABLE files ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'"
+            )    
         # Recalculate usage from recorded chunks.
         conn.execute("""
             UPDATE devices
