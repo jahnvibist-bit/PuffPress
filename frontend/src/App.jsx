@@ -11,6 +11,7 @@ import {
   removeDevice,
   downloadFile,
   setDevicePriority,
+  updateDeviceDetails,
   testBinaryStorage
 } from "./api.js";
 import { signUpUser, signOutUser, supabase } from "./supabase.js";
@@ -69,6 +70,10 @@ function App() {
   const [signupMode, setSignupMode] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [priorityBusy, setPriorityBusy] = useState(null);
+  const [editingDevice, setEditingDevice] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState("laptop");
+  const [editBusy, setEditBusy] = useState(false);
   const [loginError, setLoginError] = useState("");
   const inputRef = useRef(null);
   useEffect(() => {
@@ -201,6 +206,37 @@ function App() {
       setPriorityBusy(null);
     }
   }
+  function openDeviceEdit(device) {
+  setEditingDevice(device);
+  setEditName(device.name);
+  setEditType(
+    device.device_type === "unknown" || !device.device_type
+      ? "laptop"
+      : device.device_type
+  );
+  setActiveModal("editDevice");
+}
+
+async function handleDeviceEdit() {
+  if (!editingDevice || !editName.trim() || editBusy) return;
+
+  setEditBusy(true);
+
+  try {
+    await updateDeviceDetails(
+      editingDevice.id,
+      editName.trim(),
+      editType
+    );
+
+    await loadData();
+    setActiveModal(null);
+  } catch (err) {
+    alert(err.message || "Device update failed");
+  } finally {
+    setEditBusy(false);
+  }
+}
 
   async function handleUpload() {
     if (!selectedFile) {
@@ -316,7 +352,13 @@ function App() {
     total > 0
       ? Math.min(100, Math.max(0, (used / total) * 100))
       : 0;
-
+  const availableStorage = devices
+  .filter(device => device.status === "online")
+  .reduce(
+    (sum, device) =>
+      sum + Math.max(0, Number(device.free_gb) || 0),
+    0
+  );
   // Show a minimum visible fill when storage is used.
   // Actual storage percentage remains unchanged.
   const visualPercent =
@@ -653,7 +695,13 @@ if (!authenticated) {
                 {devices.map((device) => (
                   <div className="modal-device" key={device.id}>
                     <span aria-hidden="true">
-                      {device.url?.startsWith("browser://") ? "📱" : "💻"}
+                      {device.device_type === "laptop"
+                    ? "💻"
+                    : device.device_type === "phone"
+                    ? "📱"
+                    : device.device_type === "tablet"
+                    ? "📲"
+                    : "🖥️"}
                     </span>
                     <div>
                       <strong>{device.name}</strong>
@@ -674,6 +722,15 @@ if (!authenticated) {
                         ))}
                       </select>
                     </label>
+                    <button
+                    type="button"
+                    className="icon-button"
+                    title="Edit device"
+                    aria-label={`Edit ${device.name}`}
+                    onClick={() => openDeviceEdit(device)}
+                    >
+                    ✎
+                    </button>
                     <button
                       type="button"
                       className="icon-button delete-button device-remove-button"
@@ -786,9 +843,9 @@ if (!authenticated) {
                   </strong>
 
                   <small>
-                    Maximum file size: under 5 MB
+                    Available storage: {formatStorage(availableStorage)}
                   </small>
-
+                  <small>Current per-file limit: under 5 MB</small>
                   <input
                     type="file"
                     ref={inputRef}
@@ -812,14 +869,44 @@ if (!authenticated) {
                 </button>
               </>
             )}
+            {activeModal === "editDevice" && (
+  <>
+    <h2>✎ Edit Device</h2>
+
+    <label>Device Name</label>
+    <input
+      type="text"
+      value={editName}
+      maxLength={50}
+      onChange={(e) => setEditName(e.target.value)}
+    />
+
+    <label>Device Type</label>
+    <select
+      value={editType}
+      onChange={(e) => setEditType(e.target.value)}
+    >
+      <option value="laptop">Laptop / PC</option>
+      <option value="phone">Phone</option>
+      <option value="tablet">Tablet</option>
+    </select>
+
+    <button
+      type="button"
+      disabled={editBusy || !editName.trim()}
+      onClick={handleDeviceEdit}
+    >
+      {editBusy ? "Saving..." : "Save Changes"}
+    </button>
+  </>
+)}
 
             {activeModal === "pair" && (
               <>
                 <h2>🐡 Pair a Device</h2>
 
                 <p>
-                  Scan this QR code using your
-                  second device.
+                  Scan the QR code on another device or open the pairing page on this device.
                 </p>
 
 {pairing?.pairing_id && (
@@ -865,7 +952,7 @@ if (!authenticated) {
         fontWeight: 600,
       }}
     >
-      Open Pairing Page
+    Pair This Device
     </a>
   </div>
 )}

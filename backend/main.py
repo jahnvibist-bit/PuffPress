@@ -1709,6 +1709,15 @@ def init_database():
             conn.execute(
                 "ALTER TABLE files ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'"
             )    
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(devices)")
+        }
+
+        if "device_type" not in columns:
+            conn.execute(
+                "ALTER TABLE devices ADD COLUMN device_type TEXT NOT NULL DEFAULT 'unknown'"
+            )
         # Recalculate usage from recorded chunks.
         conn.execute("""
             UPDATE devices
@@ -1988,6 +1997,7 @@ class PairingVerifyRequest(BaseModel):
         min_length=1,
         max_length=50
     )
+    device_type: str = "unknown"
     allocated_gb: float
 
 
@@ -2188,6 +2198,7 @@ def verify_pairing(data: PairingVerifyRequest):
                 data.allocated_gb,
                 0,
                 session["user_id"],
+                data.device_type
             ))
 
         session["used"] = True
@@ -2213,6 +2224,7 @@ def get_device_usage_rows():
                 devices.url,
                 devices.total_gb,
                 devices.priority,
+                devices.device_type,
                 COALESCE(SUM(chunks.size), 0)
                     AS used_bytes
             FROM devices
@@ -2972,7 +2984,9 @@ def register_device(device: DeviceRegister, user_id: str = Depends(require_supab
         "message": "Device registered successfully"
     }
 
-
+class DeviceUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    device_type: str
 class PriorityUpdate(BaseModel):
     priority: int = Field(ge=1, le=5)
 
@@ -2987,7 +3001,49 @@ def update_device_priority(device_id: str, data: PriorityUpdate, user_id: str = 
         if cursor.rowcount != 1:
             raise HTTPException(status_code=404, detail="Device not found")
     return {"message": "Priority updated", "priority": data.priority}
+@app.patch("/devices/{device_id}/details")
+def update_device_details(
+    device_id: str,
+    data: DeviceUpdateRequest,
+    user_id: str = Depends(require_supabase_user),
+):
+    name = data.name.strip()
 
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Device name cannot be empty"
+        )
+
+    if data.device_type not in (
+        "laptop", "phone", "tablet"
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid device type"
+        )
+
+    with get_db() as conn:
+        result = conn.execute("""
+            UPDATE devices
+            SET name = ?, device_type = ?
+            WHERE id = ? AND user_id = ?
+        """, (
+            name,
+            data.device_type,
+            device_id,
+            user_id
+        ))
+
+        if result.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Device not found"
+            )
+
+    return {
+        "message": "Device updated successfully"
+    }
 
 # ---------------------------------------
 # PHONE STORAGE TESTS

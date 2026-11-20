@@ -57,7 +57,7 @@
         box-shadow: 0 10px 30px rgba(35, 76, 101, 0.08);
     }
 
-    input {
+    input,select {
         width: 100%;
         padding: 14px 16px;
         border: 2px solid #c2e3f1;
@@ -132,11 +132,16 @@
             placeholder="6-digit code"
             required
         >
-
+        <label for="deviceType">Select device type</label>
+    <select id="deviceType" required>
+        <option value="laptop">Laptop / PC</option>
+        <option value="phone">Phone</option>
+        <option value="tablet">Tablet</option>
+    </select>
         <input
             id="deviceName"
             type="text"
-            placeholder="Enter device name (e.g. My Samsung)"
+            placeholder="e.g. My Laptop or My Samsung"
             maxlength="50"
             required
         >
@@ -202,6 +207,8 @@
 
             const deviceName =
                 document.getElementById("deviceName").value.trim();
+            const deviceType =
+                document.getElementById("deviceType").value;
             const storageAmount = Number(
             document.getElementById("storageAmount").value
             );
@@ -246,8 +253,9 @@
                         body: JSON.stringify({
                         pairing_id: pairingId,
                         passcode: passcode,
-                       device_id: deviceId,
+                        device_id: deviceId,
                         device_name: deviceName,
+                        device_type: deviceType,
                         allocated_gb: allocatedGb
                         })
                     }
