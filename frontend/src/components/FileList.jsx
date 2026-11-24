@@ -93,11 +93,11 @@ export default function FileList({files, folders, devices, jobs, errors, runJob,
               </li>)}
             </ul></details>}
           <div className="pp-file-tools">
-            {!trash && <details><summary aria-label={`Options for ${file.name}`}>⋯</summary><label>Move to folder <select aria-label={`Folder for ${file.name}`} value={file.folder_id || ""}
+            {!trash && <label>Move to folder <select aria-label={`Folder for ${file.name}`} value={file.folder_id || ""}
               disabled={Boolean(job) || paused} onChange={e => assign(file, e.target.value)}>
               <option value="">My Files</option>
               {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select></label></details>}
+            </select></label>}
             <button disabled={Boolean(job) || paused || confirming} onClick={() => runJob(file,trash ? "restore" : "download")}>{trash ? "Restore" : "Download"}</button>
             <button disabled={Boolean(job) || confirming} onClick={() => setConfirmId(file.id)}>
               {paused ? "Retry delete" : trash ? "Delete permanently" : "Delete"}</button>
