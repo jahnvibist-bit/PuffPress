@@ -1,0 +1,12 @@
+.pp-copy-code {margin:1rem auto .5rem}
+.pp-copy-code input {width:8ch;text-align:center;font:600 1.15rem monospace;user-select:all}
+.pp-copy-code button {margin:.35rem;padding:.45rem .7rem;background:#d9f1fc;color:#214c65;border:1px solid #86b9d0;border-radius:8px}
+.pp-copy-code small {display:block}
+.dashboard .pp-folder-grid article {position:relative;display:block}
+.dashboard .pp-folder-grid article > .pp-open-folder {width:calc(100% - 2.75rem);min-width:0;justify-content:flex-start}
+.dashboard .pp-folder-grid article > details > summary {position:absolute;top:.45rem;right:.4rem;width:2.25rem;margin:0;text-align:center;cursor:pointer}
+.dashboard .pp-folder-grid article > details[open] {width:100%}
+@media(max-width:720px){
+  .dashboard .profile .pp-profile-name,.dashboard .brand-copy small {display:none}
+  .dashboard .topbar .profile {flex:0 0 auto;width:2.65rem;height:2.65rem;max-width:none;padding:.15rem;display:grid;place-items:center}
+}

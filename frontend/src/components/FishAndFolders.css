@@ -1,0 +1,25 @@
+.pp-folder-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,12rem),1fr));gap:.6rem;margin:.6rem 0 1.2rem}
+.pp-folder-grid article {display:flex;align-items:flex-start;gap:.25rem;background:#f2f8fc;border:1px solid #aeccdd;border-radius:12px;padding:.4rem;flex-wrap:wrap}
+.pp-folder-grid .pp-open-folder {display:flex;align-items:center;gap:.6rem;flex:1;min-width:0;text-align:left;overflow-wrap:anywhere;background:transparent;border:0}
+.pp-path {text-align:left;margin:.6rem 0;overflow-wrap:anywhere}
+.pp-files summary {cursor:pointer;padding:.3rem}
+.pp-folder-grid article:has(details[open]) details {width:100%}
+.pp-files h3 {margin:.9rem 0 .3rem}
+.dashboard .pp-floating {position:fixed;z-index:35;right:max(12px,env(safe-area-inset-right));bottom:max(15px,env(safe-area-inset-bottom));margin:0;text-align:right}
+.pp-floating .pp-fish {width:56px;height:56px;padding:0;display:grid;place-items:center;border-radius:50%;background:#e8f7fc;border:2px solid #88b8cf;box-shadow:0 3px 8px #234a6a25;font-size:33px;animation:pp-bob 3.4s ease-in-out infinite}
+.pp-floating .pp-fish:hover,.pp-floating .pp-fish:focus-visible,.pp-floating .pp-fish[aria-expanded=true] {animation:none}
+@keyframes pp-bob {0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@media(prefers-reduced-motion:reduce){.pp-floating .pp-fish {animation:none}}
+.dashboard .pp-floating section {position:absolute;top:auto;bottom:calc(100% + 10px);right:0;width:min(21rem,calc(100vw - 28px));max-height:55dvh;overflow:auto;text-align:left}
+@media (max-width:720px) {
+ .dashboard .pp-floating {bottom:calc(85px + env(safe-area-inset-bottom))}
+}
+.pp-fish small {position:absolute;right:calc(100% + 4px);white-space:nowrap;background:#fffdf5;border:1px solid #afcada;border-radius:1rem;padding:3px 8px;color:#245169;font:600 12px/1.4 system-ui}
+
+.pp-folder-grid details summary {list-style:none;text-align:center;border-radius:.45rem;min-width:2rem}
+.pp-folder-grid details summary::-webkit-details-marker {display:none}
+.pp-folder-grid details summary:hover,.pp-open-folder:hover {background:#e1f0f7}
+.pp-folder-grid article {align-items:center}
+.pp-path span {color:#416579}
+.pp-files .pp-folder-grid article:focus-within {border-color:#709db4}
+.pp-floating .pp-fish {line-height:1}

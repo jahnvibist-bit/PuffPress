@@ -10,7 +10,7 @@ from pathlib import Path
 router = APIRouter()
 
 DB_PATH = (
-    Path(__file__).resolve().parent.parent
+    Path(os.environ.get("PUFFPRESS_DATA_DIR") or Path(__file__).resolve().parent.parent)
     / "puffpress.db"
 )
 
@@ -87,7 +87,9 @@ async def device_socket(websocket: WebSocket, device_id: str):
         "PUFFPRESS_FRONTEND_ORIGIN", ""
     ).rstrip("/")
 
-    if frontend_origin:
+    if os.getenv("RENDER") == "true":
+        allowed_origins = {frontend_origin} if frontend_origin.startswith("https://") else set()
+    elif frontend_origin:
         allowed_origins.add(frontend_origin)
 
     if origin not in allowed_origins:

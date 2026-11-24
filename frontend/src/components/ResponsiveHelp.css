@@ -1,0 +1,18 @@
+html body #root {width:100%; max-width:none; margin:0; border-inline:0; min-height:100dvh}
+#root .welcome-page {width:100%; min-height:100dvh; padding:clamp(18px,4vh,40px) clamp(12px,4vw,32px)}
+#root .welcome-card {max-width:100%; padding:clamp(20px,5vw,42px)}
+#root .dashboard .dashboard-content {max-width:none; min-width:0}
+.pp-guide {position:relative; text-align:right; margin-block:0 .7rem}
+.pp-guide section {position:absolute; top:100%; right:0; z-index:5; width:min(100%,22rem); text-align:left; background:#fffdf6; border:1px solid #8ab3c7; border-radius:12px; padding:1rem; box-shadow:0 4px 12px #26475e29}
+.pp-guide button,.pp-folder-actions button {background:#d9f1fc;color:#214c65;border:1px solid #86b9d0;border-radius:9px;padding:.45rem .7rem;font:inherit}
+.pp-guide input,.pp-folder-actions input {box-sizing:border-box;max-width:100%;color:#214c65;background:white;border:1px solid #86b9d0;border-radius:8px;padding:.45rem}
+.pp-guide input {display:block;width:100%;margin:.3rem 0}
+.pp-guide section button {margin:.2rem .3rem .2rem 0}
+.pp-guide p:empty {display:none}
+.pp-folder-actions {display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-block:.6rem}
+@media(max-width:720px){
+  .pp-profile-tools {min-width:0}
+  .pp-profile-tools .profile {min-width:0;white-space:nowrap}
+  .pp-mini-switch {flex-shrink:0}
+  .pp-guide section {position:static;margin-left:auto}
+}

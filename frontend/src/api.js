@@ -241,7 +241,7 @@ export const setDevicePriority = (id, priority) =>
     }
   );
 
-export async function downloadFile(fileId) {
+export async function downloadFile(fileId, onProgress) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -260,10 +260,23 @@ export async function downloadFile(fileId) {
   );
 
   if (!res.ok) {
-    throw new Error(`Download failed (${res.status})`);
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Download failed (${res.status})`);
   }
 
-  return res.blob();
+  if (!res.body || !onProgress) return res.blob();
+  const reader = res.body.getReader();
+  const total = Number(res.headers.get("content-length"));
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    if (total > 0) onProgress(Math.min(100, Math.floor(received * 100 / total)));
+  }
+  return new Blob(chunks, {type: res.headers.get("content-type") || "application/octet-stream"});
 }
 export const updateDeviceDetails = (id, name, deviceType) =>
   apiFetch(`/devices/${encodeURIComponent(id)}/details`, {
@@ -276,3 +289,17 @@ export const updateDeviceDetails = (id, name, deviceType) =>
       device_type: deviceType
     })
   });
+export const createFolder = (name) => apiFetch("/folders", {
+  method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})
+});
+export const moveFile = (id, folderId) => apiFetch(`/files/${encodeURIComponent(id)}/folder`, {
+  method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify({folder_id: folderId})
+});
+
+export const restoreFile = id => apiFetch(`/files/${encodeURIComponent(id)}/restore`, {method: "POST"});
+export const purgeFile = id => apiFetch(`/files/${encodeURIComponent(id)}/permanent`, {method: "DELETE"});
+
+export const renameFolder = (id, name) => apiFetch(`/folders/${encodeURIComponent(id)}`, {
+  method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})
+});
+export const deleteFolder = id => apiFetch(`/folders/${encodeURIComponent(id)}`, {method: "DELETE"});

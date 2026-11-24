@@ -1589,10 +1589,12 @@ from fastapi import Depends, Security
 from fastapi.security import APIKeyHeader
 import sqlite3
 import zlib
+from tempfile import TemporaryFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 import asyncio
+from contextlib import contextmanager
 import qrcode
 import io
 import httpx
@@ -1616,8 +1618,9 @@ from backend.device_bridge import (
 # ---------------------------------------
 
 BASE_PATH = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_PATH / "puffpress.db"
-STORAGE_PATH = BASE_PATH / "storage"
+DATA_PATH = Path(os.environ.get("PUFFPRESS_DATA_DIR") or BASE_PATH)
+DB_PATH = DATA_PATH / "puffpress.db"
+STORAGE_PATH = DATA_PATH / "storage"
 
 CHUNK_SIZE = 256 * 1024
 GB = 1024 ** 3
@@ -1718,6 +1721,19 @@ def init_database():
             conn.execute(
                 "ALTER TABLE devices ADD COLUMN device_type TEXT NOT NULL DEFAULT 'unknown'"
             )
+        file_columns = {row["name"] for row in conn.execute("PRAGMA table_info(files)")}
+        for column, kind in (("uploaded_at", "TEXT"), ("deleted_at", "TEXT"), ("original_bytes", "INTEGER"), ("folder_id", "TEXT")):
+            if column not in file_columns:
+                conn.execute(f"ALTER TABLE files ADD COLUMN {column} {kind}")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS folders (
+                id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL COLLATE NOCASE,
+                UNIQUE(user_id, name)
+            )
+        """)
+        chunk_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chunks)")}
+        if "replica_of" not in chunk_columns:
+            conn.execute("ALTER TABLE chunks ADD COLUMN replica_of INTEGER")
         # Recalculate usage from recorded chunks.
         conn.execute("""
             UPDATE devices
@@ -1755,7 +1771,11 @@ allowed_origins = [
     "https://puffpress-frontend.vercel.app",
 ]
 
-if frontend_origin:
+if os.getenv("RENDER") == "true":
+    if not frontend_origin.startswith("https://"):
+        raise RuntimeError("Set PUFFPRESS_FRONTEND_ORIGIN to your HTTPS frontend origin.")
+    allowed_origins = [frontend_origin]
+elif frontend_origin:
     allowed_origins.append(frontend_origin)
 
 app.add_middleware(
@@ -2054,9 +2074,13 @@ def get_pairing_frontend_origin(request: Request):
 def make_pairing_qr_png(pairing_id: str, frontend_origin: str):
     from urllib.parse import quote
 
+    # pairing_url = (
+    #     "https://puffpress-frontend.vercel.app/pair.html"
+    #     f"?pairing_id={quote(pairing_id, safe='')}"
+    # )
     pairing_url = (
-        "https://puffpress-frontend.vercel.app/pair.html"
-        f"?pairing_id={quote(pairing_id, safe='')}"
+        f"{frontend_origin}/pair.html"
+        f"#pairing_id={quote(pairing_id, safe='')}"
     )
 
     print("QR destination:", pairing_url.split("?")[0])
@@ -2076,12 +2100,20 @@ def create_pairing(
     pairing_id = secrets.token_urlsafe(16)
     passcode = f"{secrets.randbelow(1000000):06d}"
 
-    pairing_sessions[pairing_id] = {
-        "passcode": passcode,
-        "expires_at": time.time() + PAIRING_EXPIRY,
-        "used": False,
-        "user_id": user_id,
-    }
+    with pairing_attempts_lock:
+        now = time.time()
+        stale = [key for key, value in pairing_sessions.items() if value["expires_at"] <= now]
+        for key in stale:
+            del pairing_sessions[key]
+        issued = sum(session["user_id"] == user_id for session in pairing_sessions.values())
+        if issued >= 10:
+            raise HTTPException(429, "Pairing limit reached. Try again in five minutes.")
+        pairing_sessions[pairing_id] = {
+            "passcode": passcode,
+            "expires_at": time.time() + PAIRING_EXPIRY,
+            "used": False,
+            "user_id": user_id,
+        }
 
     qr_png = make_pairing_qr_png(
         pairing_id,
@@ -2336,46 +2368,14 @@ def device(user_id: str = Depends(require_supabase_user)):
 # ---------------------------------------
 
 def get_storage_nodes(user_id):
-    rows = get_device_usage_rows()
-
-    unique_nodes = []
-    seen_urls = set()
-
-    for row in rows:
-        # Only use devices owned by this user.
-        if row["user_id"] != user_id:
-            continue
-
-        url = row["url"]
-
-        if url in seen_urls:
-            continue
-
-        if url.startswith("browser://"):
-            if row["id"] not in connected_devices:
-                continue
-        else:
-            try:
-                response = httpx.get(
-                    f"{url.rstrip('/')}/health",
-                    timeout=2.0,
-                )
-                response.raise_for_status()
-            except httpx.HTTPError:
-                continue
-
-        unique_nodes.append({
-            "id": row["id"],
-            "name": row["name"],
-            "url": url,
-            "total_gb": row["total_gb"],
-            "used_bytes": row["used_bytes"],
-            "priority": row["priority"],
-        })
-
-        seen_urls.add(url)
-
-    return sorted(unique_nodes, key=lambda n: n["priority"])
+    nodes = []
+    seen = set()
+    for node in device(user_id)["devices"]:
+        if node["status"] == "online" and node["url"] not in seen:
+            seen.add(node["url"])
+            node["available_bytes"] = max(0, int(node["free_gb"] * GB))
+            nodes.append(node)
+    return sorted(nodes, key=lambda node: node["priority"])
 
 
 
@@ -2484,73 +2484,161 @@ async def delete_chunk_from_node(
 # FILE UPLOAD
 # ---------------------------------------
 
+
+def plan_chunk_storage(nodes, chunks):
+    # Store two independent copies when more than one device participates.
+    ranked = sorted(nodes, key=lambda n: (n["priority"], n["id"]))
+    free = {n["id"]: n["available_bytes"] if "available_bytes" in n else
+            max(0, int(n["total_gb"] * GB) - n["used_bytes"]) for n in ranked}
+    total = sum(map(len, chunks))
+    primary = next((n for n in ranked if free[n["id"]] >= total), None)
+    placements = []
+    for index, chunk in enumerate(chunks):
+        candidates = [n for n in ranked if n != primary and free[n["id"]] >= len(chunk)]
+        candidates.sort(key=lambda n: -free[n["id"]])
+        selected = ([primary] if primary else []) + candidates
+        count = min(2, len(ranked))
+        if not count or len(selected) < count:
+            raise HTTPException(507, "To keep this file downloadable with one device offline, share more space on a second device or choose a smaller file.")
+        for position, node in enumerate(selected[:count]):
+            free[node["id"]] -= len(chunk)
+            placements.append((index + position * len(chunks), node, chunk, index if position else None))
+    return placements
+
+
+# Pending physical deletions survive restarts in files.status.
+offline_cleanup_task = None
+offline_cleanup_wakeup = None
+
+
+@app.on_event("startup")
+async def start_offline_cleanup():
+    global offline_cleanup_task, offline_cleanup_wakeup
+    offline_cleanup_wakeup = asyncio.Event()
+    offline_cleanup_task = asyncio.create_task(run_offline_cleanup())
+
+
+@app.on_event("shutdown")
+async def stop_offline_cleanup():
+    if offline_cleanup_task:
+        offline_cleanup_task.cancel()
+        try:
+            await offline_cleanup_task
+        except asyncio.CancelledError:
+            pass
+
+
+async def run_offline_cleanup():
+    import logging
+    while True:
+        offline_cleanup_wakeup.clear()
+        try:
+            with get_db() as conn:
+                pending = conn.execute("SELECT id, user_id FROM files WHERE status = 'deleting'").fetchall()
+            for row in pending:
+                try:
+                    await clean_deleted_file(row["id"], row["user_id"])
+                except Exception:
+                    logging.exception("PuffPress file cleanup will retry")
+        except Exception:
+            logging.exception("PuffPress could not list pending cleanup")
+        try:
+            await asyncio.wait_for(offline_cleanup_wakeup.wait(), timeout=15)
+        except asyncio.TimeoutError:
+            pass
+
+
+async def clean_deleted_file(file_id, user_id):
+    with get_db() as conn:
+        row = conn.execute("SELECT path FROM files WHERE id=? AND user_id=? AND status='deleting'",
+                           (file_id, user_id)).fetchone()
+        if row is None:
+            return
+        chunks = conn.execute("""SELECT c.id, c.device_id, c.size, d.url FROM chunks c
+            JOIN devices d ON d.id=c.device_id WHERE c.file_id=? AND d.user_id=?""",
+            (file_id, user_id)).fetchall()
+    unavailable = set()
+    for chunk in chunks:
+        device_id = chunk["device_id"]
+        if device_id in unavailable or (chunk["url"].startswith("browser://") and device_id not in connected_devices):
+            continue
+        try:
+            await delete_chunk_from_node(device_id, chunk["url"], chunk["id"])
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                unavailable.add(device_id)
+                continue
+        except Exception:
+            unavailable.add(device_id)
+            continue
+        with get_db() as conn:
+            removed = conn.execute("DELETE FROM chunks WHERE id=? AND file_id=?", (chunk["id"], file_id))
+            if removed.rowcount:
+                conn.execute("UPDATE devices SET used_gb=MAX(0,used_gb-?) WHERE id=? AND user_id=?",
+                             (chunk["size"]/GB, device_id, user_id))
+    with get_db() as conn:
+        if not conn.execute("SELECT 1 FROM chunks WHERE file_id=? LIMIT 1", (file_id,)).fetchone():
+            if row["path"]:
+                path = Path(row["path"])
+                if path.is_file():
+                    path.unlink()
+            conn.execute("DELETE FROM files WHERE id=? AND user_id=? AND status='deleting'", (file_id,user_id))
+
+active_uploads = set()
+
+
+def compress_allocated_file(source, target, quota):
+    original_size = 0
+    compressor = zlib.compressobj()
+    while True:
+        block = source.read(CHUNK_SIZE)
+        if not block:
+            break
+        original_size += len(block)
+        if original_size > quota:
+            raise HTTPException(413, "File exceeds the remaining shared space.")
+        target.write(compressor.compress(block))
+    target.write(compressor.flush())
+    return original_size, target.tell()
+
+
+
 @app.post("/upload", dependencies=[Depends(require_supabase_user)])
 async def upload_file(file: UploadFile = File(...), user_id: str = Depends(require_supabase_user)):
-    content = await file.read()
+    if user_id in active_uploads:
+        raise HTTPException(429, "An upload is already running for this account.")
+    active_uploads.add(user_id)
+    try:
+        nodes = await asyncio.to_thread(get_storage_nodes, user_id)
+        if not nodes:
+            raise HTTPException(503, "Connect a storage device before uploading.")
+        quota = sum(n["available_bytes"] for n in nodes)
+        if quota <= 0:
+            raise HTTPException(507, "Online devices have no remaining shared space.")
+        if file.size is not None and file.size > quota:
+            raise HTTPException(413, "File exceeds the remaining shared space.")
+        with TemporaryFile() as compressed:
+            original_size, compressed_size = await asyncio.to_thread(
+                compress_allocated_file, file.file, compressed, quota)
+            return await store_allocated_file(file, user_id, nodes, compressed, original_size, compressed_size)
+    finally:
+        active_uploads.discard(user_id)
 
-    compressed_content = zlib.compress(content)
-    chunks = split_into_chunk(compressed_content)
 
-    nodes = get_storage_nodes(user_id)
-
-    if not nodes:
-        raise HTTPException(
-            status_code=503,
-            detail="No storage nodes available",
-        )
-
-    # Round-robin chunk distribution.
-    placements = []
-
-    for index, chunk in enumerate(chunks):
-        node = nodes[index % len(nodes)]
-        placements.append((index, node, chunk))
-
-    # Check allocated storage capacity.
-    required = {
-        node["id"]: 0
-        for node in nodes
-    }
-
-    for _, node, chunk in placements:
-        required[node["id"]] += len(chunk)
-
-    for node in nodes:
-        remaining_bytes = max(
-            0,
-            node["total_gb"] * GB
-            - node["used_bytes"],
-        )
-
-        if required[node["id"]] > remaining_bytes:
-            raise HTTPException(
-                status_code=507,
-                detail=(
-                    "Not enough allocated storage "
-                    f"on device {node['id']}"
-                ),
-            )
+async def store_allocated_file(file, user_id, nodes, compressed, original_size, compressed_size):
+    chunks = [range(start, min(start + CHUNK_SIZE, compressed_size))
+              for start in range(0, compressed_size, CHUNK_SIZE)]
+    placements = plan_chunk_storage(nodes, chunks)
 
     file_id = str(uuid4())
-
-    STORAGE_PATH.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    file_path = STORAGE_PATH / f"{file_id}.bin"
 
     stored_chunks = []
 
     try:
-        # Preserve existing local compressed backup.
-        await asyncio.to_thread(
-            file_path.write_bytes,
-            compressed_content,
-            )
-
         # Store chunks on selected nodes.
-        for index, node, chunk in placements:
+        for index, node, part, replica_of in placements:
+            compressed.seek(part.start)
+            chunk = compressed.read(len(part))
             chunk_id = (
                 f"{file_id.replace('-', '')}_{index}"
             )
@@ -2571,20 +2659,32 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
 
         # Commit metadata only after all writes succeed.
         with get_db() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            needed = defaultdict(int)
+            for _, node, chunk, _ in placements:
+                needed[node["id"]] += len(chunk)
+            for device_id, count in needed.items():
+                row = conn.execute("""
+                    SELECT total_gb, (SELECT COALESCE(SUM(size), 0) FROM chunks
+                        WHERE device_id = devices.id) AS used_bytes FROM devices
+                    WHERE id = ? AND user_id = ?
+                """, (device_id, user_id)).fetchone()
+                if row is None or row["total_gb"] * GB - row["used_bytes"] < count:
+                    raise HTTPException(507, "Device capacity changed during upload. Retry.")
             conn.execute("""
                 INSERT INTO files (
-                    id, name, size, path, status, user_id
+                    id, name, size, path, status, user_id, original_bytes, uploaded_at
                 )
-                VALUES (?, ?, ?, ?, 'ready', ?)
+                VALUES (?, ?, ?, ?, 'ready', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
             """, (
                 file_id,
                 file.filename,
-                len(compressed_content),
-                str(file_path),
-                user_id,
+                compressed_size,
+                None,
+                user_id, original_size,
             ))
 
-            for index, node, chunk in placements:
+            for index, node, chunk, replica_of in placements:
                 chunk_id = (
                     f"{file_id.replace('-', '')}_{index}"
                 )
@@ -2592,15 +2692,16 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
                 conn.execute("""
                     INSERT INTO chunks (
                         id, file_id, chunk_index,
-                        device_id, size
+                        device_id, size, replica_of
                     )
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 """, (
                     chunk_id,
                     file_id,
                     index,
                     node["id"],
                     len(chunk),
+                    replica_of,
                 ))
 
                 conn.execute("""
@@ -2616,7 +2717,6 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
         import traceback
         print("ACTUAL UPLOAD ERROR:", flush=True)
         traceback.print_exc()
-        cleanup_failed = []
 
         for device_id, node_url, chunk_id in reversed(
             stored_chunks
@@ -2628,18 +2728,14 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
                     chunk_id,
                 )
             except Exception as cleanup_error:
-                cleanup_failed.append(chunk_id)
                 print(
                     "Upload cleanup failed:",
                     chunk_id,
                     cleanup_error,
                 )
 
-        # Only remove backup when remote cleanup
-        # completed; otherwise retain recovery copy.
-        if not cleanup_failed:
-            file_path.unlink(missing_ok=True)
-
+        if isinstance(error, HTTPException):
+            raise
         raise HTTPException(
             status_code=500,
             detail=(
@@ -2651,8 +2747,8 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(requi
     return {
         "filename": file.filename,
         "file_id": file_id,
-        "size_byte": len(compressed_content),
-        "original_size_byte": len(content),
+        "size_byte": compressed_size,
+        "original_size_byte": original_size,
         "message": "File uploaded successfully",
     }
 
@@ -2668,20 +2764,126 @@ def get_files(user_id: str = Depends(require_supabase_user)):
             SELECT *
             FROM files
             WHERE user_id = ?
+            AND COALESCE(status,'ready') <> 'deleting'
             ORDER BY rowid DESC
         """, (user_id,)).fetchall()
 
-    return {
-        "files": [dict(row) for row in rows]
-    }
+        folders = conn.execute("SELECT id, name FROM folders WHERE user_id = ? ORDER BY name", (user_id,)).fetchall()
+        locations = conn.execute("""
+            WITH owned_chunks AS (
+                SELECT c.file_id, c.device_id, d.name, c.size, c.replica_of,
+                       COALESCE(c.replica_of, c.chunk_index) AS part
+                FROM files f
+                JOIN chunks c ON c.file_id = f.id
+                JOIN devices d ON d.id = c.device_id AND d.user_id = f.user_id
+                WHERE f.user_id = ? AND f.status = 'ready'
+            ), totals AS (
+                SELECT file_id, COUNT(DISTINCT part) AS total_parts
+                FROM owned_chunks GROUP BY file_id
+            )
+            SELECT c.file_id, c.device_id, c.name, SUM(c.size) AS stored_bytes,
+                   COUNT(DISTINCT c.part) AS parts, t.total_parts,
+                   COUNT(c.replica_of) AS replica_parts
+            FROM owned_chunks c JOIN totals t ON t.file_id = c.file_id
+            GROUP BY c.file_id, c.device_id, c.name, t.total_parts
+            ORDER BY c.file_id, parts DESC, c.name, c.device_id
+        """, (user_id,)).fetchall()
+
+    by_file = defaultdict(list)
+    for location in locations:
+        by_file[location["file_id"]].append(dict(location))
+    return {"files": [dict(row, locations=by_file[row["id"]]) for row in rows],
+            "folders": [dict(folder) for folder in folders]}
+
 
 
 # ---------------------------------------
 # FILE DOWNLOAD
 # ---------------------------------------
 
+class FolderCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+class FileFolder(BaseModel):
+    folder_id: str | None = None
+
+@app.post("/folders")
+def create_folder(data: FolderCreate, user_id: str = Depends(require_supabase_user)):
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(400, "Enter a folder name.")
+    folder_id = str(uuid4())
+    with get_db() as conn:
+        try:
+            conn.execute("INSERT INTO folders VALUES (?, ?, ?)", (folder_id, user_id, name))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "A folder with that name already exists.")
+    return {"id": folder_id, "name": name}
+
+@app.patch("/folders/{folder_id}")
+def rename_folder(folder_id: str, data: FolderCreate, user_id: str = Depends(require_supabase_user)):
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(400, "Enter a folder name.")
+    with get_db() as conn:
+        try:
+            changed = conn.execute("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?",
+                                   (name, folder_id, user_id))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "A folder with that name already exists.")
+        if not changed.rowcount:
+            raise HTTPException(404, "Folder not found.")
+    return {"id": folder_id, "name": name}
+
+
+@app.delete("/folders/{folder_id}")
+def delete_folder(folder_id: str, user_id: str = Depends(require_supabase_user)):
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM folders WHERE id = ? AND user_id = ?",
+                            (folder_id, user_id)).fetchone():
+            raise HTTPException(404, "Folder not found.")
+        conn.execute("UPDATE files SET folder_id = NULL WHERE folder_id = ? AND user_id = ?",
+                     (folder_id, user_id))
+        conn.execute("DELETE FROM folders WHERE id = ? AND user_id = ?", (folder_id, user_id))
+    return {"removed": folder_id}
+
+
+@app.patch("/files/{file_id}/folder")
+def move_file(file_id: str, data: FileFolder, user_id: str = Depends(require_supabase_user)):
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if data.folder_id is not None and not conn.execute(
+            "SELECT 1 FROM folders WHERE id = ? AND user_id = ?", (data.folder_id, user_id)
+        ).fetchone():
+            raise HTTPException(404, "Folder not found.")
+        changed = conn.execute("UPDATE files SET folder_id = ? WHERE id = ? AND user_id = ? AND status = 'ready'",
+                               (data.folder_id, file_id, user_id))
+        if not changed.rowcount:
+            raise HTTPException(409, "File is unavailable or being deleted.")
+    return {"folder_id": data.folder_id}
+
+# Device sockets and file operations share the single live Uvicorn worker.
+active_file_operations = set()
+
+@contextmanager
+def file_operation(user_id, file_id):
+    key = (user_id, file_id)
+    if key in active_file_operations:
+        raise HTTPException(409, "Another operation is in progress for this file. Try again shortly.")
+    active_file_operations.add(key)
+    try:
+        yield
+    finally:
+        active_file_operations.discard(key)
+
 @app.get("/files/{file_id}/download", dependencies=[Depends(require_supabase_user)])
 async def download_file(file_id: str, user_id: str = Depends(require_supabase_user)):
+    with file_operation(user_id, file_id):
+        return await read_file_chunks(file_id, user_id)
+
+
+async def read_file_chunks(file_id, user_id):
     with get_db() as conn:
         file_row = conn.execute(
             "SELECT * FROM files WHERE id = ? AND user_id = ?",
@@ -2691,7 +2893,7 @@ async def download_file(file_id: str, user_id: str = Depends(require_supabase_us
         chunks = conn.execute("""
             SELECT
                 chunks.id,
-                chunks.chunk_index,
+                chunks.chunk_index, chunks.replica_of,
                 chunks.device_id,
                 devices.url
             FROM chunks
@@ -2707,6 +2909,9 @@ async def download_file(file_id: str, user_id: str = Depends(require_supabase_us
             detail="File not found",
         )
 
+    if file_row["status"] == "trashed":
+        raise HTTPException(409, "Restore this file before downloading it.")
+
     if file_row["status"] == "deleting":
         raise HTTPException(
             status_code=409,
@@ -2721,24 +2926,30 @@ async def download_file(file_id: str, user_id: str = Depends(require_supabase_us
 
     retrieved_chunks = []
 
+    copies = defaultdict(list)
     for chunk in chunks:
-        try:
-            data = await retrieve_chunk_from_node(
-                chunk["device_id"],
-                chunk["url"],
-                chunk["id"],
-            )
+        logical_index = chunk["replica_of"]
+        if logical_index is None:
+            logical_index = chunk["chunk_index"]
+        copies[logical_index].append(chunk)
 
+    for index in sorted(copies):
+        for chunk in copies[index]:
+            if chunk["url"].startswith("browser://") and chunk["device_id"] not in connected_devices:
+                continue
+            try:
+                data = await retrieve_chunk_from_node(chunk["device_id"], chunk["url"], chunk["id"])
+            except Exception:
+                continue
             retrieved_chunks.append(data)
-
-        except Exception as error:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Unable to retrieve chunk "
-                    f"{chunk['id']}: {error}"
-                ),
-            ) from error
+            break
+        else:
+            # Older installations recorded a compressed coordinator backup.
+            legacy = STORAGE_PATH / f"{file_id}.bin"
+            if file_row["path"] and Path(file_row["path"]).resolve() == legacy.resolve() and legacy.is_file():
+                retrieved_chunks = [await asyncio.to_thread(legacy.read_bytes)]
+                break
+            raise HTTPException(503, f"Reconnect a device holding part {index + 1}. This upload has no reachable copy of that part.")
 
     compressed_data = b"".join(retrieved_chunks)
 
@@ -2778,89 +2989,47 @@ async def download_file(file_id: str, user_id: str = Depends(require_supabase_us
 
 @app.delete("/files/{file_id}", dependencies=[Depends(require_supabase_user)])
 async def deleteFile(file_id: str, user_id: str = Depends(require_supabase_user)):
-    with get_db() as conn:
-        file_row = conn.execute(
-            "SELECT * FROM files WHERE id = ? AND user_id = ?",
-            (file_id, user_id),
-        ).fetchone()
-
-        if file_row is None:
-            raise HTTPException(
-                status_code=404,
-                detail="File not found",
-            )
-
-        chunks = conn.execute("""
-            SELECT
-                chunks.id,
-                chunks.size,
-                chunks.device_id,
-                devices.url
-            FROM chunks
-            JOIN devices
-                ON chunks.device_id = devices.id
-            WHERE chunks.file_id = ?
-            ORDER BY chunks.chunk_index ASC
-        """, (file_id,)).fetchall()
-
-        conn.execute("""
-            UPDATE files
-            SET status = 'deleting'
-            WHERE id = ?
-        """, (file_id,))
-
-    # Each successfully deleted chunk updates usage.
-    # If a device is offline, remaining metadata stays
-    # available for retrying deletion later.
-    for chunk in chunks:
-        try:
-            await delete_chunk_from_node(
-                chunk["device_id"],
-                chunk["url"],
-                chunk["id"],
-            )
-
-        except Exception as error:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Failed to delete chunk "
-                    f"{chunk['id']}: {error}"
-                ),
-            ) from error
-
+    with file_operation(user_id, file_id):
         with get_db() as conn:
-            conn.execute(
-                "DELETE FROM chunks WHERE id = ?",
-                (chunk["id"],),
-            )
+            row = conn.execute("SELECT status FROM files WHERE id = ? AND user_id = ?", (file_id, user_id)).fetchone()
+            if row is None:
+                raise HTTPException(404, "File not found.")
+            if row["status"] == "deleting":
+                raise HTTPException(409, "Permanent deletion has already started.")
+            conn.execute("""UPDATE files SET status = 'trashed',
+                         deleted_at = COALESCE(deleted_at, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+                         WHERE id = ? AND user_id = ?""", (file_id, user_id))
+    return {"status": "trashed"}
 
-            conn.execute("""
-                UPDATE devices
-                SET used_gb = MAX(0, used_gb - ?)
-                WHERE id = ?
-            """, (
-                chunk["size"] / GB,
-                chunk["device_id"],
-            ))
 
-    backup_path = Path(file_row["path"])
+@app.post("/files/{file_id}/restore")
+async def restore_file(file_id: str, user_id: str = Depends(require_supabase_user)):
+    with file_operation(user_id, file_id), get_db() as conn:
+        changed = conn.execute("""UPDATE files SET status = 'ready', deleted_at = NULL
+                                  WHERE id = ? AND user_id = ? AND status = 'trashed'""", (file_id, user_id))
+        if not changed.rowcount:
+            raise HTTPException(409, "This file is unavailable for restore.")
+    return {"status": "ready"}
 
-    if backup_path.is_file():
-        backup_path.unlink()
 
+@app.delete("/files/{file_id}/permanent")
+async def purge_file(file_id: str, user_id: str = Depends(require_supabase_user)):
+    with file_operation(user_id, file_id):
+        return await delete_file_chunks(file_id, user_id)
+
+
+async def delete_file_chunks(file_id, user_id):
     with get_db() as conn:
-        conn.execute(
-            "DELETE FROM files WHERE id = ?",
-            (file_id,),
-        )
-
-    return {
-        "message": (
-            "File and all distributed chunks "
-            "deleted successfully"
-        )
-    }
+        with conn:
+            row = conn.execute("SELECT status FROM files WHERE id=? AND user_id=?", (file_id,user_id)).fetchone()
+            if row is None:
+                raise HTTPException(404,"File not found")
+            if row["status"] not in ("trashed","deleting"):
+                raise HTTPException(409,"Move this file to Recently Deleted first.")
+            conn.execute("UPDATE files SET status='deleting' WHERE id=? AND user_id=?", (file_id,user_id))
+    if offline_cleanup_wakeup is not None:
+        offline_cleanup_wakeup.set()
+    return {"status":"deleting","message":"File removed. Device storage is released as devices reconnect."}
 
 
 # ---------------------------------------
@@ -2870,8 +3039,9 @@ async def deleteFile(file_id: str, user_id: str = Depends(require_supabase_user)
 @app.delete("/devices/{device_id}", dependencies=[Depends(require_supabase_user)])
 async def remove_device(device_id: str, user_id: str = Depends(require_supabase_user)):
     with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         device = conn.execute(
-            "SELECT id, name FROM devices WHERE id = ? AND user_id = ?",
+            "SELECT id, name, total_gb FROM devices WHERE id = ? AND user_id = ?",
             (device_id, user_id)
         ).fetchone()
 
@@ -2908,7 +3078,9 @@ async def remove_device(device_id: str, user_id: str = Depends(require_supabase_
     await disconnect_device(device_id)
     return {
         "message": "Device removed successfully",
-        "device_id": device_id
+        "device_id": device_id,
+        "name": device["name"],
+        "released_allocation_bytes": round(device["total_gb"] * GB)
     }
 
 # ---------------------------------------

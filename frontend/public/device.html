@@ -92,6 +92,12 @@
       statusEl.textContent = message;
       statusEl.style.color = color;
       detailsEl.textContent = details;
+      if (window.parent !== window) {
+        window.parent.postMessage(
+          { type: "puffpress-device-status", message },
+          location.origin
+        );
+      }
     }
 
     function openDatabase() {

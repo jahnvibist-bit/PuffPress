@@ -1,9 +1,10 @@
+import HelpBot from "./components/HelpBot.jsx";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   getDevices,
   getFiles,
   getstorage,
-  deleteFile,
+  deleteFile, restoreFile, purgeFile,
   uploadFile,
   loginOwner,
   checkOwnerSession,
@@ -15,7 +16,12 @@ import {
   testBinaryStorage
 } from "./api.js";
 import { signUpUser, signOutUser, supabase } from "./supabase.js";
+import DeviceConnection from "./components/DeviceConnection.jsx";
 import "./App.css";
+import PairCode from "./components/PairCode.jsx";
+import "./components/PairingLayout.css";
+import "./FormControls.css";
+import FileList from "./components/FileList.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 function formatStorage(gb) {
@@ -33,6 +39,7 @@ function formatStorage(gb) {
 function formatFileSize(bytes) {
   const value = Number(bytes) || 0;
 
+  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)} GB`;
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) {
     return `${(value / 1024).toFixed(2)} KB`;
@@ -60,7 +67,11 @@ function App() {
   const [activeModal, setActiveModal] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(null);
+  const [folders, setFolders] = useState([]);
+  const [fileJobs, setFileJobs] = useState({});
+  const [fileErrors, setFileErrors] = useState({});
+  const jobIds = useRef(new Set());
+  const [releaseNotice, setReleaseNotice] = useState("");
   const [removingDeviceId, setRemovingDeviceId] = useState(null);
   const [error, setError] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
@@ -88,6 +99,7 @@ function App() {
         setDevices([]);
         setFiles([]);
         setPairing(null);
+        setReleaseNotice("");
       }
     });
     return () => subscription.unsubscribe();
@@ -104,6 +116,7 @@ function App() {
       setStorage(storageData);
       setDevices(deviceData.devices || []);
       setFiles(fileData.files || []);
+      setFolders(fileData.folders || []);
       setError("");
     } catch (err) {
       console.error("Loading error:", err);
@@ -179,19 +192,43 @@ function App() {
     }
   }
 
-  async function handleDownload(file) {
+  async function runFileJob(file, kind) {
+    if (jobIds.current.has(file.id)) return;
+    jobIds.current.add(file.id);
+    const progress = percent => setFileJobs(jobs => ({...jobs, [file.id]: {kind, percent}}));
+    progress(null);
+    setFileErrors(errors => ({...errors, [file.id]: ""}));
     try {
-      const blob = await downloadFile(file.id);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.name || "download.bin";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (kind === "delete") {
+        await deleteFile(file.id);
+      } else if (kind === "restore") {
+        await restoreFile(file.id);
+      } else if (kind === "purge") {
+        await purgeFile(file.id);
+      } else {
+        const blob = await downloadFile(file.id, progress);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.name || "download.bin";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     } catch (err) {
-      alert(err.message || "Download failed");
+      setFileErrors(errors => ({...errors, [file.id]: err.message}));
+    } finally {
+      try {
+        if (kind !== "download") await loadData();
+      } finally {
+        jobIds.current.delete(file.id);
+        setFileJobs(jobs => {
+          const next = {...jobs};
+          delete next[file.id];
+          return next;
+        });
+      }
     }
   }
 
@@ -244,10 +281,8 @@ async function handleDeviceEdit() {
       return;
     }
 
-    // Temporary safety limit until large-file
-    // streaming support is implemented.
-    if (selectedFile.size >= 5 * 1024 * 1024) {
-      alert("File must be smaller than 5 MB.");
+    if (selectedFile.size > Math.floor(availableStorage * 1024 ** 3)) {
+      alert("This file exceeds the remaining shared space on your online devices.");
       return;
     }
 
@@ -297,33 +332,6 @@ async function handleDeviceEdit() {
     }
   }
 
-  async function handleDelete(fileId) {
-    if (!window.confirm("Delete this file permanently?")) {
-      return;
-    }
-
-    try {
-      setIsDeleting(fileId);
-
-      const result = await deleteFile(fileId);
-
-      if (
-        result.message !==
-        "File and all distributed chunks deleted successfully"
-      ) {
-        throw new Error(result.detail || "Deletion failed");
-      }
-
-      await loadData();
-    } catch (err) {
-      console.error("Delete error:", err);
-      alert(err.message || "Could not delete file.");
-      await loadData();
-    } finally {
-      setIsDeleting(null);
-    }
-  }
-
   async function handleRemoveDevice(device) {
     const confirmed = window.confirm(
       `Remove "${device.name}" from PuffPress?\n\n` +
@@ -331,9 +339,11 @@ async function handleDeviceEdit() {
     );
     if (!confirmed) return;
 
+    setReleaseNotice("");
     setRemovingDeviceId(device.id);
     try {
-      await removeDevice(device.id);
+      const result = await removeDevice(device.id);
+      setReleaseNotice(`${result.name} removed. ${formatFileSize(result.released_allocation_bytes)} of shared capacity released. Stored file data at removal: 0 B.`);
       await loadData();
     } catch (err) {
       console.error("Remove device error:", err);
@@ -410,7 +420,7 @@ if (!authenticated) {
           <button className="primary-btn" type="submit" disabled={authBusy}>
             {authBusy ? "Please wait..." : signupMode ? "Create Account →" : "Sign In →"}
           </button>
-          <button type="button" onClick={() => { setSignupMode(!signupMode); setLoginError(""); }}>
+          <button className="auth-mode-button" type="button" onClick={() => { setSignupMode(!signupMode); setLoginError(""); }}>
             {signupMode ? "Already have an account? Sign in" : "New here? Sign up"}
           </button>
         </form>
@@ -528,17 +538,22 @@ if (!authenticated) {
             )}
           </div>
         </div>
+        <div className="pp-profile-tools">
+          <DeviceConnection device={devices.find(item => item.id === localStorage.getItem("puffpress-device-id"))}
+            onPair={handleCreatePairing} pairingLoading={pairingLoading} />
         <button
-          className="profile"
+          className="profile" aria-label={`Open profile for ${user}`}
           type="button"
           onClick={() => setActiveModal("profile")}
         >
           <span className="avatar">{user.charAt(0).toUpperCase()}</span>
-          {user}
+          <span className="pp-profile-name">{user}</span>
         </button>
+        </div>
       </header>
 
       <main className="dashboard-content">
+        {!activeModal && <HelpBot page={activePage} />}
         {error && (
           <p role="alert" style={{ color: "#b84c58" }}>
             {error}
@@ -630,48 +645,11 @@ if (!authenticated) {
             <div className="tape tape-right" />
             <div className="card-heading">
               <h2>📁 My Files</h2>
-              <span className="file-count">{files.length} files</span>
+              <span className="file-count">{files.filter(file => file.status === "ready").length} files</span>
             </div>
 
-            {files.length === 0 ? (
-              <div className="empty-state">
-                <span>🐚</span>
-                <p>No files yet. Upload your first one from Home!</p>
-              </div>
-            ) : (
-              <div className="file-list">
-                {files.map((file) => {
-                  return (
-                    <div className="file-row" key={file.id}>
-                      <span className="file-icon">📄</span>
-                      <div className="file-info">
-                        <strong>{file.name}</strong>
-                        <small>{formatFileSize(file.size)}</small>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-button"
-                        title="Download"
-                        aria-label={`Download ${file.name}`}
-                        onClick={() => handleDownload(file)}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-button delete-button"
-                        title="Delete"
-                        aria-label={`Delete ${file.name}`}
-                        disabled={isDeleting === file.id}
-                        onClick={() => handleDelete(file.id)}
-                      >
-                        {isDeleting === file.id ? "..." : "×"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <FileList files={files} folders={folders} devices={devices} jobs={fileJobs}
+              errors={fileErrors} runJob={runFileJob} reload={loadData} formatSize={formatFileSize} />
           </section>
         )}
 
@@ -683,8 +661,9 @@ if (!authenticated) {
               <span className="file-count">{onlineDevices} online / {devices.length} total</span>
             </div>
             <p style={{ color: "#688ba0" }}>
-              Your connected storage team. A device with stored file chunks cannot be removed.
+              Priority 1 is highest. For each new upload, the highest-ranked online device with enough space keeps every part. If no single device has room, the file is split across available devices. Changing priority applies to future uploads.
             </p>
+            {releaseNotice && <p role="status">{releaseNotice}</p>}
             {devices.length === 0 ? (
               <div className="empty-state">
                 <span>🐚</span>
@@ -706,7 +685,10 @@ if (!authenticated) {
                     <div>
                       <strong>{device.name}</strong>
                       <small>
-                        {device.status} · {formatStorage(device.used_gb)} / {formatStorage(device.total_gb)}
+                        {device.status} · Shared capacity: {formatFileSize(Math.round(device.total_gb * 1024 ** 3))}
+                      </small>
+                      <small>
+                        File data stored: {formatFileSize(device.used_bytes)} · Unused allocation: {formatFileSize(Math.max(0, Math.round(device.total_gb * 1024 ** 3) - device.used_bytes))}
                       </small>
                     </div>
                     <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -718,7 +700,7 @@ if (!authenticated) {
                         onChange={(event) => handlePriority(device.id, event.target.value)}
                       >
                         {[1, 2, 3, 4, 5].map((n) => (
-                          <option key={n} value={n}>{n}</option>
+                          <option key={n} value={n}>{n === 1 ? "1 · Highest" : n === 5 ? "5 · Lowest" : n}</option>
                         ))}
                       </select>
                     </label>
@@ -750,26 +732,15 @@ if (!authenticated) {
 
         {activePage === "help" && (
           <section className="sketch-card files-card help-page">
-            <div className="tape tape-right" />
-            <h2>♡ Help & How It Works</h2>
-            <p>🐡 Your files. Your devices. Your cloud.</p>
-            <h3>How do I add a device?</h3>
-            <p>
-              Go to Home, tap the mint Add Device bubble and scan its QR code on your phone.
-              The pairing code expires after five minutes.
-            </p>
-            <h3>How do I access my files?</h3>
-            <p>Open My Files to download or delete files stored across your devices.</p>
-            <h3>Can I remove a device?</h3>
-            <p>
-              Yes, from Devices. Removal is blocked when a device still holds file chunks,
-              so your stored data is not silently discarded.
-            </p>
-            <h3>Can devices connect over different networks?</h3>
-            <p>
-              Local pairing works with the current reachable backend. Secure remote access
-              across networks will require a publicly reachable HTTPS/WSS coordinator.
-            </p>
+            <h2>How PuffPress works</h2>
+            <ol className="pp-help-steps">
+              <li><i aria-hidden="true">📱 ▦</i><strong>Pair a device</strong><small>Open Add Device and scan the QR code on the device sharing space.</small></li>
+              <li><i aria-hidden="true">🟢 💻</i><strong>Switch ON</strong><small>Use the switch beside your name on the paired device. Keep its connected tab open.</small></li>
+              <li><i aria-hidden="true">📄 → 💻</i><strong>Upload a file</strong><small>PuffPress splits it into parts and saves them on your connected devices.</small></li>
+            </ol>
+            <details><summary>How do I get my file back?</summary><p>Open My Files and choose Download. Devices holding the required parts must be online.</p></details>
+            <details><summary>What happens when I switch OFF?</summary><p>This tab stops sharing storage. Its saved parts stay in this browser until deleted. Clearing site data can erase them.</p></details>
+            <details><summary>How do I remove a device?</summary><p>Open Devices. You can remove a device once it no longer holds file parts.</p></details>
           </section>
         )}
 
@@ -845,7 +816,7 @@ if (!authenticated) {
                   <small>
                     Available storage: {formatStorage(availableStorage)}
                   </small>
-                  <small>Current per-file limit: under 5 MB</small>
+                  <small>Upload limit: {formatStorage(availableStorage)} remaining on online devices</small>
                   <input
                     type="file"
                     ref={inputRef}
@@ -870,19 +841,19 @@ if (!authenticated) {
               </>
             )}
             {activeModal === "editDevice" && (
-  <>
+  <div className="edit-device-fields">
     <h2>✎ Edit Device</h2>
 
-    <label>Device Name</label>
-    <input
+    <label htmlFor="edit-device-name">Device Name</label>
+    <input id="edit-device-name"
       type="text"
       value={editName}
       maxLength={50}
       onChange={(e) => setEditName(e.target.value)}
     />
 
-    <label>Device Type</label>
-    <select
+    <label htmlFor="edit-device-type">Device Type</label>
+    <select id="edit-device-type"
       value={editType}
       onChange={(e) => setEditType(e.target.value)}
     >
@@ -891,14 +862,14 @@ if (!authenticated) {
       <option value="tablet">Tablet</option>
     </select>
 
-    <button
+    <button className="primary-btn"
       type="button"
       disabled={editBusy || !editName.trim()}
       onClick={handleDeviceEdit}
     >
       {editBusy ? "Saving..." : "Save Changes"}
     </button>
-  </>
+  </div>
 )}
 
             {activeModal === "pair" && (
@@ -940,8 +911,9 @@ if (!authenticated) {
       </p>
     )}
 
+    <PairCode key={pairing.pairing_id} code={pairing.passcode} />
     <a
-      href={`https://puffpress-frontend.vercel.app/pair.html#pairing_id=${encodeURIComponent(pairing.pairing_id)}`}
+      href={`/pair.html#pairing_id=${encodeURIComponent(pairing.pairing_id)}`}
       target="_blank"
       rel="noopener noreferrer"
       style={{
@@ -956,15 +928,6 @@ if (!authenticated) {
     </a>
   </div>
 )}
-
-
-
-                <p>Your pairing code:</p>
-
-                <div className="pair-code">
-                  {pairing?.passcode ??
-                    "Code unavailable"}
-                </div>
 
                 <p>
                   Code expires after 5 minutes.

@@ -1,0 +1,15 @@
+.pp-files { color: #244961; text-align: left; }
+.pp-file-tools { display:flex; gap:.55rem; flex-wrap:wrap; align-items:center; margin:.7rem 0; }
+.pp-file-tools > input { min-width:0; flex:1 1 10rem; }
+.pp-file-tools select, .pp-file-tools input, .pp-files button {
+  box-sizing:border-box; max-width:100%; width:auto; min-height:38px;
+  font:inherit; border:1px solid #86b9d0; border-radius:9px; padding:.4rem .65rem;
+}
+.pp-files button { background:#d9f1fc; color:#214c65; cursor:pointer; }
+.pp-files button:disabled { opacity:.5; cursor:default; }
+.pp-file-entry { display:grid; gap:.4rem; padding:1rem; background:#fffdf6; border:1px solid #b5d9e8; border-radius:14px; overflow-wrap:anywhere; }
+.pp-file-entry progress { display:block; width:100%; margin:.35rem 0; accent-color:#3782a7; }
+.pp-file-confirm { background:#ecf7fd; padding:.75rem; border-radius:10px; }
+.pp-file-confirm button + button { margin-left:.5rem; }
+.pp-files :focus-visible { outline:2px solid #256684; outline-offset:2px; }
+.pp-file-tools button[aria-pressed="true"] { background:#99d2eb; border-color:#548da9; }
