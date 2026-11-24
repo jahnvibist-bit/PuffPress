@@ -1,5 +1,6 @@
 import HelpBot from "./components/HelpBot.jsx";
 import { useState, useEffect, useRef, useCallback } from "react";
+import "./PopupLayout.css";
 import {
   getDevices,
   getFiles,
