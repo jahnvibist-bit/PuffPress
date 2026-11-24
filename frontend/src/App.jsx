@@ -885,7 +885,6 @@ if (!authenticated) {
   <div style={{ textAlign: "center", margin: "16px auto" }}>
     {pairing.qr_image ? (
       <img
-        key={pairing.pairing_id}
         src={pairing.qr_image}
         alt="Device pairing QR"
         onLoad={() => setQrFailed(false)}
