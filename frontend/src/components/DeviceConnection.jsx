@@ -38,9 +38,26 @@ export default function DeviceConnection({device, onPair, pairingLoading}) {
     switchRef.current?.focus();
   }
   const switchRef = useRef(null);
-  const reminder = elsewhere ? "This device is already connected in another tab." :
-    paired && !running && !showGuide ? "This device is disconnected. Tap the switch to reconnect." : "";
+  const canReconnect = paired && !running && !elsewhere && !showGuide;
+  const [popupDevice, setPopupDevice] = useState(null);
 
+  useEffect(() => {
+    if (!canReconnect) {
+      setPopupDevice(null);
+      return;
+    }
+
+    setPopupDevice(guideKey);
+    const timer = window.setTimeout(() => setPopupDevice(null), 4000);
+    return () => window.clearTimeout(timer);
+    }, [canReconnect, guideKey]);
+
+  let reminder = "";
+  if (elsewhere) {
+    reminder = "Connected in another tab.";
+  } else if (canReconnect && popupDevice === guideKey) {
+    reminder = "Tap to reconnect.";
+  }
   useEffect(() => {
     function receive(event) {
       if (frame.current && event.origin === location.origin &&

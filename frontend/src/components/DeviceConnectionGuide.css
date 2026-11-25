@@ -51,3 +51,30 @@
   color: #36586b;
   text-align: end;
 }
+.pp-switch-guide-wrap .pp-switch-reminder {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-end: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(12rem, 48vw);
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid #b7d4e0;
+  border-radius: 8px;
+  background: #f1f9fc;
+  color: #315465;
+  box-shadow: 0 2px 6px #28485e1a;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: start;
+  pointer-events: none;
+}
+
+.pp-switch-guide-wrap .pp-mini-switch[aria-checked="false"]:enabled {
+  background: #eef1f2;
+  border-color: #9aa9af;
+  color: #34454d;
+  cursor: pointer;
+}
